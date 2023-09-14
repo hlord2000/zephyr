@@ -1,0 +1,38 @@
+config ADC_ADS131M0X
+	bool "ADS131M0X driver"
+	default y
+	depends on DT_HAS_TI_ADS131M02_ENABLED || DT_HAS_TI_ADS131M03_ENABLED || \
+		   DT_HAS_TI_ADS131M04_ENABLED || DT_HAS_TI_ADS131M06_ENABLED || \
+		   DT_HAS_TI_ADS131M08_ENABLED
+
+	select SPI
+	select ADC_CONFIGURABLE_INPUTS
+	help
+	  Enable ADS131M0X ADC driver.
+
+if ADC_ADS131M0X
+
+config ADC_ADS131M0X_INIT_PRIORITY
+	int "Init priority"
+	default 80
+	help
+	  ADS1X1X ADC device driver initialization priority.
+
+config ADC_ADS131M0X_ASYNC_THREAD_INIT_PRIORITY
+	int "ADC ADS131M0X async thread priority"
+	default 0
+
+config ADC_ADS131M0X_ACQUISITION_THREAD_PRIORITY
+	int "Priority for the ADC data acquisition thread"
+	default 0
+	help
+	  Priority level for the internal ADC data acquisition thread.
+
+config ADC_ADS131M0X_ACQUISITION_THREAD_STACK_SIZE
+	int "Stack size for the ADC data acquisition thread"
+	default 400
+	help
+	  Size of the stack used for the internal data acquisition
+	  thread.
+
+endif # ADC_ADS131M0X

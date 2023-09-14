@@ -1,0 +1,12 @@
+description: Texas Instrument ADS131M03 SPI ADC
+
+compatible: "ti,ads131m03"
+
+properties:
+  "#io-channel-cells":
+    const: 3
+
+io-channel-cells:
+  - channel1
+  - channel2
+  - channel3

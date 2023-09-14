@@ -1,0 +1,15 @@
+description: Texas Instrument ADS131M06 SPI ADC
+
+compatible: "ti,ads131m06"
+
+properties:
+  "#io-channel-cells":
+    const: 6
+
+io-channel-cells:
+  - channel1
+  - channel2
+  - channel3
+  - channel4
+  - channel5
+  - channel6
