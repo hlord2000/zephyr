@@ -1,0 +1,17 @@
+# Common fields for Texas Instruments ADS131M0X
+
+include: [adc-controller.yaml, spi-device.yaml]
+
+on-bus: spi
+
+properties:
+  drdy-gpios:
+    type: phandle-array
+    required: true
+    description: |
+      gpio for data ready, becomes active when a conversion result is ready
+  sync-gpios:
+    type: phandle-array
+    required: false
+    description: |
+      gpio for synchronizing operations across multiple adcs

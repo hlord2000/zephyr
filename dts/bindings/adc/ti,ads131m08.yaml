@@ -1,0 +1,19 @@
+description: Texas Instrument ADS131M08 SPI ADC
+
+compatible: "ti,ads131m08"
+
+include: ti,ads131m0x-base.yaml
+
+properties:
+  "#io-channel-cells":
+    const: 8
+
+io-channel-cells:
+  - channel0
+  - channel1
+  - channel2
+  - channel3
+  - channel4
+  - channel5
+  - channel6
+  - channel7

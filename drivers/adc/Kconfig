@@ -114,4 +114,6 @@ source "drivers/adc/Kconfig.nxp_s32"
 
 source "drivers/adc/Kconfig.max1125x"
 
+source "drivers/adc/Kconfig.ads131m0x"
+
 endif # ADC
