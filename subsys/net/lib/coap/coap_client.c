@@ -14,9 +14,6 @@ LOG_MODULE_DECLARE(net_coap, CONFIG_COAP_LOG_LEVEL);
 #include <zephyr/net/coap_client.h>
 
 #define COAP_VERSION 1
-#define COAP_PATH_ELEM_DELIM '/'
-#define COAP_PATH_ELEM_QUERY '?'
-#define COAP_PATH_ELEM_AMP '&'
 #define COAP_SEPARATE_TIMEOUT 6000
 #define COAP_PERIODIC_TIMEOUT 500
 #define DEFAULT_RETRY_AMOUNT 5
@@ -116,108 +113,6 @@ static bool has_ongoing_requests(void)
 	return has_requests;
 }
 
-static int coap_client_init_path_options(struct coap_packet *pckt, const char *path)
-{
-	int ret = 0;
-	int path_start, path_end;
-	int path_length;
-	bool contains_query = false;
-	int i;
-
-	path_start = 0;
-	path_end = 0;
-	path_length = strlen(path);
-	for (i = 0; i < path_length; i++) {
-		path_end = i;
-		if (path[i] == COAP_PATH_ELEM_DELIM) {
-			/* Guard for preceding delimiters */
-			if (path_start < path_end) {
-				ret = coap_packet_append_option(pckt, COAP_OPTION_URI_PATH,
-								path + path_start,
-								path_end - path_start);
-				if (ret < 0) {
-					LOG_ERR("Failed to append path to CoAP message");
-					goto out;
-				}
-			}
-			/* Check if there is a new path after delimiter,
-			 * if not, point to the end of string to not add
-			 * new option after this
-			 */
-			if (path_length > i + 1) {
-				path_start = i + 1;
-			} else {
-				path_start = path_length;
-			}
-		} else if (path[i] == COAP_PATH_ELEM_QUERY) {
-			/* Guard for preceding delimiters */
-			if (path_start < path_end) {
-				ret = coap_packet_append_option(pckt, COAP_OPTION_URI_PATH,
-								path + path_start,
-								path_end - path_start);
-				if (ret < 0) {
-					LOG_ERR("Failed to append path to CoAP message");
-					goto out;
-				}
-			}
-			/* Rest of the path is query */
-			contains_query = true;
-			if (path_length > i + 1) {
-				path_start = i + 1;
-			} else {
-				path_start = path_length;
-			}
-			break;
-		}
-	}
-
-	if (contains_query) {
-		for (i = path_start; i < path_length; i++) {
-			path_end = i;
-			if (path[i] == COAP_PATH_ELEM_AMP || path[i] == COAP_PATH_ELEM_QUERY) {
-				/* Guard for preceding delimiters */
-				if (path_start < path_end) {
-					ret = coap_packet_append_option(pckt, COAP_OPTION_URI_QUERY,
-									path + path_start,
-									path_end - path_start);
-					if (ret < 0) {
-						LOG_ERR("Failed to append path to CoAP message");
-						goto out;
-					}
-				}
-				/* Check if there is a new query option after delimiter,
-				 * if not, point to the end of string to not add
-				 * new option after this
-				 */
-				if (path_length > i + 1) {
-					path_start = i + 1;
-				} else {
-					path_start = path_length;
-				}
-			}
-		}
-	}
-
-	if (path_start < path_end) {
-		if (contains_query) {
-			ret = coap_packet_append_option(pckt, COAP_OPTION_URI_QUERY,
-							path + path_start,
-							path_end - path_start + 1);
-		} else {
-			ret = coap_packet_append_option(pckt, COAP_OPTION_URI_PATH,
-							path + path_start,
-							path_end - path_start + 1);
-		}
-		if (ret < 0) {
-			LOG_ERR("Failed to append path to CoAP message");
-			goto out;
-		}
-	}
-
-out:
-	return ret;
-}
-
 static enum coap_block_size coap_client_default_block_size(void)
 {
 	switch (CONFIG_COAP_CLIENT_BLOCK_SIZE) {
@@ -268,7 +163,7 @@ static int coap_client_init_request(struct coap_client *client,
 		goto out;
 	}
 
-	ret = coap_client_init_path_options(&internal_req->request, req->path);
+	ret = coap_packet_set_path(&internal_req->request, req->path);
 
 	if (ret < 0) {
 		LOG_ERR("Failed to parse path to options %d", ret);
@@ -413,12 +308,6 @@ int coap_client_req(struct coap_client *client, int sock, const struct sockaddr 
 
 	reset_internal_request(internal_req);
 
-	if (retries == -1) {
-		internal_req->retry_count = DEFAULT_RETRY_AMOUNT;
-	} else {
-		internal_req->retry_count = retries;
-	}
-
 	if (k_mutex_lock(&client->send_mutex, K_NO_WAIT)) {
 		return -EAGAIN;
 	}
@@ -437,16 +326,25 @@ int coap_client_req(struct coap_client *client, int sock, const struct sockaddr 
 		goto out;
 	}
 
-	ret = coap_pending_init(&internal_req->pending, &internal_req->request, &client->address,
-				internal_req->retry_count);
+	/* only TYPE_CON messages need pending tracking */
+	if (coap_header_get_type(&internal_req->request) == COAP_TYPE_CON) {
+		if (retries == -1) {
+			internal_req->retry_count = DEFAULT_RETRY_AMOUNT;
+		} else {
+			internal_req->retry_count = retries;
+		}
 
-	if (ret < 0) {
-		LOG_ERR("Failed to initialize pending struct");
-		k_mutex_unlock(&client->send_mutex);
-		goto out;
+		ret = coap_pending_init(&internal_req->pending, &internal_req->request,
+					&client->address, internal_req->retry_count);
+
+		if (ret < 0) {
+			LOG_ERR("Failed to initialize pending struct");
+			k_mutex_unlock(&client->send_mutex);
+			goto out;
+		}
+
+		coap_pending_cycle(&internal_req->pending);
 	}
-
-	coap_pending_cycle(&internal_req->pending);
 
 	ret = send_request(sock, internal_req->request.data, internal_req->request.offset, 0,
 			  &client->address, client->socklen);
@@ -473,8 +371,12 @@ static void report_callback_error(struct coap_client_internal_request *internal_
 
 static bool timeout_expired(struct coap_client_internal_request *internal_req)
 {
+	if (internal_req->pending.timeout == 0) {
+		return false;
+	}
+
 	return (internal_req->request_ongoing &&
-		internal_req->pending.timeout <= k_uptime_get_32());
+		internal_req->pending.timeout <= (k_uptime_get() - internal_req->pending.t0));
 }
 
 static int resend_request(struct coap_client *client,
@@ -652,35 +554,6 @@ static int send_ack(struct coap_client *client, const struct coap_packet *req,
 	return 0;
 }
 
-static int send_reset(struct coap_client *client, const struct coap_packet *req,
-		      uint8_t response_code)
-{
-	int ret;
-	uint16_t id;
-	uint8_t token[COAP_TOKEN_MAX_LEN];
-	uint8_t tkl;
-	struct coap_packet reset;
-
-	id = coap_header_get_id(req);
-	tkl = response_code ? coap_header_get_token(req, token) : 0;
-	ret = coap_packet_init(&reset, client->send_buf, MAX_COAP_MSG_LEN, COAP_VERSION,
-			       COAP_TYPE_RESET, tkl, token, response_code, id);
-
-	if (ret < 0) {
-		LOG_ERR("Error creating CoAP reset message");
-		return ret;
-	}
-
-	ret = send_request(client->fd, reset.data, reset.offset, 0,
-			   &client->address, client->socklen);
-	if (ret < 0) {
-		LOG_ERR("Error sending CoAP reset message");
-		return ret;
-	}
-
-	return 0;
-}
-
 struct coap_client_internal_request *get_request_with_id(struct coap_client *client,
 							 uint16_t message_id)
 {
@@ -736,7 +609,7 @@ static int handle_response(struct coap_client *client, const struct coap_packet 
 	 */
 	response_type = coap_header_get_type(response);
 
-	internal_req = get_request_with_id(client, coap_header_get_id(response));
+	internal_req = get_request_with_token(client, response);
 	/* Reset and Ack need to match the message ID with request */
 	if ((response_type == COAP_TYPE_ACK || response_type == COAP_TYPE_RESET) &&
 	     internal_req == NULL)  {
@@ -754,23 +627,14 @@ static int handle_response(struct coap_client *client, const struct coap_packet 
 	/* Separate response coming */
 	if (payload_len == 0 && response_type == COAP_TYPE_ACK &&
 	    response_code == COAP_CODE_EMPTY) {
-		internal_req->pending.t0 = k_uptime_get_32();
+		internal_req->pending.t0 = k_uptime_get();
 		internal_req->pending.timeout = internal_req->pending.t0 + COAP_SEPARATE_TIMEOUT;
 		internal_req->pending.retries = 0;
 		return 1;
 	}
 
-	/* Check for tokens
-	 * Separate response doesn't match with message ID,
-	 * check if there is a separate request waiting with matching token
-	 */
-	if (internal_req == NULL) {
-		internal_req = get_request_with_token(client, response);
-	}
-
 	if (internal_req == NULL || !token_compare(internal_req, response)) {
-		LOG_ERR("Not matching tokens, respond with reset");
-		ret = send_reset(client, response, COAP_RESPONSE_CODE_NOT_FOUND);
+		LOG_WRN("Not matching tokens");
 		return 1;
 	}
 
@@ -900,7 +764,7 @@ void coap_client_recv(void *coap_cl, void *a, void *b)
 
 				ret = handle_response(clients[i], &response);
 				if (ret < 0) {
-					LOG_ERR("Error handling respnse");
+					LOG_ERR("Error handling response");
 				}
 
 				clients[i]->response_ready = false;

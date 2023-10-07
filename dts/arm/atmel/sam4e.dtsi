@@ -166,11 +166,14 @@
 			num-queues = <1>;
 			phy-connection-type = "mii";
 			status = "disabled";
+		};
 
-			mdio: mdio {
-				compatible = "atmel,sam-mdio";
-				status = "disabled";
-			};
+		mdio: mdio@40034000 {
+			compatible = "atmel,sam-mdio";
+			reg = <0x40034000 0x4000>;
+			status = "disabled";
+			#address-cells = <1>;
+			#size-cells = <0>;
 		};
 
 		pinctrl: pinctrl@400e0e00 {
@@ -291,6 +294,13 @@
 			#size-cells = <0>;
 			reg = <0x40060000 0x200>;
 			clocks = <&pmc PMC_TYPE_PERIPHERAL 8>;
+			status = "disabled";
+		};
+
+		hsmci: hsmci@40080000 {
+			compatible = "atmel,sam-hsmci";
+			reg = <0x40080000 0x1000>;
+			clocks = <&pmc PMC_TYPE_PERIPHERAL 16>;
 			status = "disabled";
 		};
 	};

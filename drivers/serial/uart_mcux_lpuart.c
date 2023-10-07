@@ -370,6 +370,11 @@ static void mcux_lpuart_irq_callback_set(const struct device *dev,
 
 	data->callback = cb;
 	data->cb_data = cb_data;
+
+#if defined(CONFIG_UART_EXCLUSIVE_API_CALLBACKS)
+	data->async.user_callback = NULL;
+	data->async.user_data = NULL;
+#endif
 }
 
 #endif /* CONFIG_UART_INTERRUPT_DRIVEN */
@@ -661,6 +666,11 @@ static int mcux_lpuart_callback_set(const struct device *dev, uart_callback_t ca
 	data->async.user_callback = callback;
 	data->async.user_data = user_data;
 
+#if defined(CONFIG_UART_EXCLUSIVE_API_CALLBACKS)
+	data->callback = NULL;
+	data->cb_data = NULL;
+#endif
+
 	return 0;
 }
 
@@ -810,7 +820,8 @@ static int mcux_lpuart_rx_buf_rsp(const struct device *dev, uint8_t *buf, size_t
 
 static void mcux_lpuart_async_rx_timeout(struct k_work *work)
 {
-	struct mcux_lpuart_rx_dma_params *rx_params = CONTAINER_OF(work,
+	struct k_work_delayable *dwork = k_work_delayable_from_work(work);
+	struct mcux_lpuart_rx_dma_params *rx_params = CONTAINER_OF(dwork,
 								   struct mcux_lpuart_rx_dma_params,
 								   timeout_work);
 	struct mcux_lpuart_async_data *async_data = CONTAINER_OF(rx_params,
@@ -824,7 +835,8 @@ static void mcux_lpuart_async_rx_timeout(struct k_work *work)
 
 static void mcux_lpuart_async_tx_timeout(struct k_work *work)
 {
-	struct mcux_lpuart_tx_dma_params *tx_params = CONTAINER_OF(work,
+	struct k_work_delayable *dwork = k_work_delayable_from_work(work);
+	struct mcux_lpuart_tx_dma_params *tx_params = CONTAINER_OF(dwork,
 								   struct mcux_lpuart_tx_dma_params,
 								   timeout_work);
 	struct mcux_lpuart_async_data *async_data = CONTAINER_OF(tx_params,

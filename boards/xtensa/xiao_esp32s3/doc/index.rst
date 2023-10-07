@@ -51,6 +51,8 @@ Current Zephyr's XIAO ESP32S3 board supports the following features:
 +------------+------------+-------------------------------------+
 | TWAI/CAN   | on-chip    | can                                 |
 +------------+------------+-------------------------------------+
+| ADC        | on-chip    | adc                                 |
++------------+------------+-------------------------------------+
 | Timers     | on-chip    | counter                             |
 +------------+------------+-------------------------------------+
 | Watchdog   | on-chip    | watchdog                            |
@@ -124,7 +126,7 @@ Sysbuild
 ========
 
 The sysbuild makes possible to build and flash all necessary images needed to
-bootstrap the board with the EPS32 SoC.
+bootstrap the board with the ESP32 SoC.
 
 To build the sample application using sysbuild use the command:
 

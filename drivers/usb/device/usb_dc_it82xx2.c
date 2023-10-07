@@ -301,7 +301,7 @@ static void it8xxx2_usb_dc_wuc_init(const struct device *dev)
 	/* Enabling the WUI */
 	it8xxx2_wuc_enable(cfg->wuc_list[0].wucs, cfg->wuc_list[0].mask);
 
-	/* Connect WU90 (USB D+) interrupt but make it disabled initally */
+	/* Connect WU90 (USB D+) interrupt but make it disabled initially */
 	IRQ_CONNECT(IT8XXX2_WU90_IRQ, 0, it82xx2_wu90_isr, 0, 0);
 }
 
@@ -821,8 +821,9 @@ static void it82xx2_usb_dc_isr(void)
 
 static void suspended_check_handler(struct k_work *item)
 {
+	struct k_work_delayable *dwork = k_work_delayable_from_work(item);
 	struct usb_it82xx2_data *udata =
-		CONTAINER_OF(item, struct usb_it82xx2_data, check_suspended_work);
+		CONTAINER_OF(dwork, struct usb_it82xx2_data, check_suspended_work);
 
 	struct usb_it82xx2_regs *const usb_regs =
 		(struct usb_it82xx2_regs *)it82xx2_get_usb_regs();
@@ -1157,7 +1158,7 @@ int usb_dc_ep_enable(const uint8_t ep)
 	if (ep_idx < EP4) {
 		LOG_DBG("ep_idx < 4");
 		ep_regs[ep_idx].ep_ctrl |= ENDPOINT_EN;
-		LOG_DBG("EP%d Enbabled %02x", ep_idx, ep_regs[ep_idx].ep_ctrl);
+		LOG_DBG("EP%d Enabled %02x", ep_idx, ep_regs[ep_idx].ep_ctrl);
 	} else {
 		LOG_DBG("ep_idx >= 4");
 		it82xx2_usb_extend_ep_ctrl(ep_idx, EXT_EP_ENABLE);

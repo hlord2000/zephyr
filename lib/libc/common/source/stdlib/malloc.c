@@ -11,7 +11,9 @@
 #include <zephyr/sys/math_extras.h>
 #include <string.h>
 #include <zephyr/app_memory/app_memdomain.h>
+#ifdef CONFIG_MULTITHREADING
 #include <zephyr/sys/mutex.h>
+#endif
 #include <zephyr/sys/sys_heap.h>
 #include <zephyr/sys/libc-hooks.h>
 #include <zephyr/types.h>
@@ -113,14 +115,31 @@ extern char _heap_sentry[];
 # endif /* else ALLOCATE_HEAP_AT_STARTUP */
 
 POOL_SECTION static struct sys_heap z_malloc_heap;
+
+#ifdef CONFIG_MULTITHREADING
 MALLOC_SECTION SYS_MUTEX_DEFINE(z_malloc_heap_mutex);
 
-void *malloc(size_t size)
-{
+static inline void
+malloc_lock(void) {
 	int lock_ret;
 
 	lock_ret = sys_mutex_lock(&z_malloc_heap_mutex, K_FOREVER);
 	__ASSERT_NO_MSG(lock_ret == 0);
+}
+
+static inline void
+malloc_unlock(void)
+{
+	(void) sys_mutex_unlock(&z_malloc_heap_mutex);
+}
+#else
+#define malloc_lock()
+#define malloc_unlock()
+#endif
+
+void *malloc(size_t size)
+{
+	malloc_lock();
 
 	void *ret = sys_heap_aligned_alloc(&z_malloc_heap,
 					   __alignof__(z_max_align_t),
@@ -129,17 +148,14 @@ void *malloc(size_t size)
 		errno = ENOMEM;
 	}
 
-	(void) sys_mutex_unlock(&z_malloc_heap_mutex);
+	malloc_unlock();
 
 	return ret;
 }
 
 void *aligned_alloc(size_t alignment, size_t size)
 {
-	int lock_ret;
-
-	lock_ret = sys_mutex_lock(&z_malloc_heap_mutex, K_FOREVER);
-	__ASSERT_NO_MSG(lock_ret == 0);
+	malloc_lock();
 
 	void *ret = sys_heap_aligned_alloc(&z_malloc_heap,
 					   alignment,
@@ -148,10 +164,31 @@ void *aligned_alloc(size_t alignment, size_t size)
 		errno = ENOMEM;
 	}
 
-	(void) sys_mutex_unlock(&z_malloc_heap_mutex);
+	malloc_unlock();
 
 	return ret;
 }
+
+#ifdef CONFIG_GLIBCXX_LIBCPP
+
+/*
+ * GCC's libstdc++ may use this function instead of aligned_alloc due to a
+ * bug in the configuration for "newlib" environments (which includes picolibc).
+ * When toolchains including that bug fix can become a dependency for Zephyr,
+ * this work-around can be removed.
+ *
+ * Note that aligned_alloc isn't defined to work as a replacement for
+ * memalign as it requires that the size be a multiple of the alignment,
+ * while memalign does not. However, the aligned_alloc implementation here
+ * is just a wrapper around sys_heap_aligned_alloc which doesn't have that
+ * requirement and so can be used by memalign.
+ */
+
+void *memalign(size_t alignment, size_t size)
+{
+	return aligned_alloc(alignment, size);
+}
+#endif
 
 static int malloc_prepare(void)
 {
@@ -201,10 +238,7 @@ static int malloc_prepare(void)
 
 void *realloc(void *ptr, size_t requested_size)
 {
-	int lock_ret;
-
-	lock_ret = sys_mutex_lock(&z_malloc_heap_mutex, K_FOREVER);
-	__ASSERT_NO_MSG(lock_ret == 0);
+	malloc_lock();
 
 	void *ret = sys_heap_aligned_realloc(&z_malloc_heap, ptr,
 					     __alignof__(z_max_align_t),
@@ -214,19 +248,16 @@ void *realloc(void *ptr, size_t requested_size)
 		errno = ENOMEM;
 	}
 
-	(void) sys_mutex_unlock(&z_malloc_heap_mutex);
+	malloc_unlock();
 
 	return ret;
 }
 
 void free(void *ptr)
 {
-	int lock_ret;
-
-	lock_ret = sys_mutex_lock(&z_malloc_heap_mutex, K_FOREVER);
-	__ASSERT_NO_MSG(lock_ret == 0);
+	malloc_lock();
 	sys_heap_free(&z_malloc_heap, ptr);
-	(void) sys_mutex_unlock(&z_malloc_heap_mutex);
+	malloc_unlock();
 }
 
 SYS_INIT(malloc_prepare, POST_KERNEL, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT);

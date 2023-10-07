@@ -118,8 +118,8 @@ typedef int16_t device_handle_t;
  * stored in @ref device.data.
  * @param config Pointer to the device's private constant data, which will be
  * stored in @ref device.config.
- * @param level The device's initialization level. See @ref sys_init for
- * details.
+ * @param level The device's initialization level (PRE_KERNEL_1, PRE_KERNEL_2 or
+ * POST_KERNEL).
  * @param prio The device's priority within its initialization level. See
  * SYS_INIT() for details.
  * @param api Pointer to the device's API structure. Can be `NULL`.
@@ -169,7 +169,8 @@ typedef int16_t device_handle_t;
  * stored in @ref device.data.
  * @param config Pointer to the device's private constant data, which will be
  * stored in @ref device.config field.
- * @param level The device's initialization level. See SYS_INIT() for details.
+ * @param level The device's initialization level (PRE_KERNEL_1, PRE_KERNEL_2 or
+ * POST_KERNEL).
  * @param prio The device's priority within its initialization level. See
  * SYS_INIT() for details.
  * @param api Pointer to the device's API structure. Can be `NULL`.
@@ -849,12 +850,23 @@ static inline bool z_impl_device_is_ready(const struct device *dev)
 #endif /* CONFIG_DEVICE_DEPS */
 
 /**
+ * @brief Init sub-priority of the device
+ *
+ * The sub-priority is defined by the devicetree ordinal, which ensures that
+ * multiple drivers running at the same priority level run in an order that
+ * respects the devicetree dependencies.
+ */
+#define Z_DEVICE_INIT_SUB_PRIO(node_id)                                        \
+	COND_CODE_1(DT_NODE_EXISTS(node_id),                                   \
+		    (DT_DEP_ORD_STR_SORTABLE(node_id)), (0))
+
+/**
  * @brief Maximum device name length.
  *
  * The maximum length is set so that device_get_binding() can be used from
  * userspace.
  */
-#define Z_DEVICE_MAX_NAME_LEN 48
+#define Z_DEVICE_MAX_NAME_LEN 48U
 
 /**
  * @brief Compile time check for device name length
@@ -920,17 +932,41 @@ static inline bool z_impl_device_is_ready(const struct device *dev)
 		DEVICE_NAME_GET(dev_id)) =                                     \
 		Z_DEVICE_INIT(name, pm, data, config, api, state, deps)
 
+/* deprecated device initialization levels */
+#define Z_DEVICE_LEVEL_DEPRECATED_EARLY                                        \
+	__WARN("EARLY device driver level is deprecated")
+#define Z_DEVICE_LEVEL_DEPRECATED_PRE_KERNEL_1
+#define Z_DEVICE_LEVEL_DEPRECATED_PRE_KERNEL_2
+#define Z_DEVICE_LEVEL_DEPRECATED_POST_KERNEL
+#define Z_DEVICE_LEVEL_DEPRECATED_APPLICATION                                  \
+	__WARN("APPLICATION device driver level is deprecated")
+#define Z_DEVICE_LEVEL_DEPRECATED_SMP                                          \
+	__WARN("SMP device driver level is deprecated")
+
+/**
+ * @brief Issue a warning if the given init level is deprecated.
+ *
+ * @param level Init level
+ */
+#define Z_DEVICE_LEVEL_CHECK_DEPRECATED_LEVEL(level)                           \
+	Z_DEVICE_LEVEL_DEPRECATED_##level
+
 /**
  * @brief Define the init entry for a device.
  *
+ * @param node_id Devicetree node id for the device (DT_INVALID_NODE if a
+ * software device).
  * @param dev_id Device identifier.
  * @param init_fn_ Device init function.
  * @param level Initialization level.
  * @param prio Initialization priority.
  */
-#define Z_DEVICE_INIT_ENTRY_DEFINE(dev_id, init_fn_, level, prio)              \
-	static const Z_DECL_ALIGN(struct init_entry)                           \
-		Z_INIT_ENTRY_SECTION(level, prio) __used __noasan              \
+#define Z_DEVICE_INIT_ENTRY_DEFINE(node_id, dev_id, init_fn_, level, prio)     \
+	Z_DEVICE_LEVEL_CHECK_DEPRECATED_LEVEL(level)                           \
+                                                                               \
+	static const Z_DECL_ALIGN(struct init_entry) __used __noasan           \
+		Z_INIT_ENTRY_SECTION(level, prio,                              \
+				     Z_DEVICE_INIT_SUB_PRIO(node_id))          \
 		Z_INIT_ENTRY_NAME(DEVICE_NAME_GET(dev_id)) = {                 \
 			.init_fn = {.dev = (init_fn_)},                        \
 			.dev = &DEVICE_NAME_GET(dev_id),                       \
@@ -967,7 +1003,7 @@ static inline bool z_impl_device_is_ready(const struct device *dev)
 	Z_DEVICE_BASE_DEFINE(node_id, dev_id, name, pm, data, config, level,   \
 			     prio, api, state, Z_DEVICE_DEPS_NAME(dev_id));    \
                                                                                \
-	Z_DEVICE_INIT_ENTRY_DEFINE(dev_id, init_fn, level, prio)
+	Z_DEVICE_INIT_ENTRY_DEFINE(node_id, dev_id, init_fn, level, prio)
 
 #if defined(CONFIG_HAS_DTS) || defined(__DOXYGEN__)
 /**

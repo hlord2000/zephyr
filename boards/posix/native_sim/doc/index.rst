@@ -65,6 +65,8 @@ The 64 bit version, ``native_sim_64``, compiles your code targeting the
 LP64 ABI (x86-64 in x86 systems), where pointers and longs are 64 bits.
 You can use this target if you cannot compile or run 32 bit binaries.
 
+.. _native_sim_Clib_choice:
+
 C library choice
 ****************
 
@@ -121,7 +123,7 @@ host libC (:kconfig:option:`CONFIG_EXTERNAL_LIBC`).
      log backend, native backend, :kconfig:option:`CONFIG_LOG_BACKEND_NATIVE_POSIX`, all
      rtc, RTC emul, :kconfig:option:`CONFIG_RTC_EMUL`, all
      serial, uart native posix/PTTY, :kconfig:option:`CONFIG_UART_NATIVE_POSIX`, all
-     serial, uart native TTY, :kconfig:option:`CONFIG_UART_NATIVE_TTY`, host libC
+     serial, uart native TTY, :kconfig:option:`CONFIG_UART_NATIVE_TTY`, all
      spi, SPI emul, :kconfig:option:`CONFIG_SPI_EMUL`, all
      system tick, native_posix timer, :kconfig:option:`CONFIG_NATIVE_POSIX_TIMER`, all
      tracing, Posix tracing backend, :kconfig:option:`CONFIG_TRACING_BACKEND_POSIX`, all

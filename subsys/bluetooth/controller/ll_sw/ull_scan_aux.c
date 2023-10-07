@@ -341,11 +341,11 @@ void ull_scan_aux_setup(memq_link_t *link, struct node_rx_hdr *rx)
 		}
 
 		if (IS_ENABLED(CONFIG_BT_CTLR_SYNC_PERIODIC) && sync_lll) {
-			struct ll_sync_set *sync;
+			struct ll_sync_set *sync_set;
 
-			sync = HDR_LLL2ULL(sync_lll);
-			ftr->aux_data_len = sync->data_len + data_len;
-			sync->data_len = 0U;
+			sync_set = HDR_LLL2ULL(sync_lll);
+			ftr->aux_data_len = sync_set->data_len + data_len;
+			sync_set->data_len = 0U;
 		} else if (aux) {
 			aux->data_len += data_len;
 			ftr->aux_data_len = aux->data_len;
@@ -469,11 +469,11 @@ void ull_scan_aux_setup(memq_link_t *link, struct node_rx_hdr *rx)
 		(!IS_ENABLED(CONFIG_BT_CTLR_PHY_CODED) &&
 		  PDU_ADV_AUX_PTR_PHY_GET(aux_ptr) == EXT_ADV_AUX_PHY_LE_CODED)) {
 		if (IS_ENABLED(CONFIG_BT_CTLR_SYNC_PERIODIC) && sync_lll) {
-			struct ll_sync_set *sync;
+			struct ll_sync_set *sync_set;
 
-			sync = HDR_LLL2ULL(sync_lll);
-			ftr->aux_data_len = sync->data_len + data_len;
-			sync->data_len = 0U;
+			sync_set = HDR_LLL2ULL(sync_lll);
+			ftr->aux_data_len = sync_set->data_len + data_len;
+			sync_set->data_len = 0U;
 		} else if (aux) {
 			aux->data_len += data_len;
 			ftr->aux_data_len = aux->data_len;
@@ -509,11 +509,11 @@ void ull_scan_aux_setup(memq_link_t *link, struct node_rx_hdr *rx)
 
 			if (IS_ENABLED(CONFIG_BT_CTLR_SYNC_PERIODIC) &&
 			    sync_lll) {
-				struct ll_sync_set *sync;
+				struct ll_sync_set *sync_set;
 
-				sync = HDR_LLL2ULL(sync_lll);
-				ftr->aux_data_len = sync->data_len + data_len;
-				sync->data_len = 0U;
+				sync_set = HDR_LLL2ULL(sync_lll);
+				ftr->aux_data_len = sync_set->data_len + data_len;
+				sync_set->data_len = 0U;
 
 			}
 
@@ -537,17 +537,21 @@ void ull_scan_aux_setup(memq_link_t *link, struct node_rx_hdr *rx)
 
 	} else {
 		aux->data_len += data_len;
+
+		if (aux->data_len >= CONFIG_BT_CTLR_SCAN_DATA_LEN_MAX) {
+			goto ull_scan_aux_rx_flush;
+		}
 	}
 
 	/* In sync context we can dispatch rx immediately, in scan context we
 	 * enqueue rx in aux context and will flush them after scan is complete.
 	 */
 	if (IS_ENABLED(CONFIG_BT_CTLR_SYNC_PERIODIC) && sync_lll) {
-		struct ll_sync_set *sync;
+		struct ll_sync_set *sync_set;
 
-		sync = HDR_LLL2ULL(sync_lll);
-		sync->data_len += data_len;
-		ftr->aux_data_len = sync->data_len;
+		sync_set = HDR_LLL2ULL(sync_lll);
+		sync_set->data_len += data_len;
+		ftr->aux_data_len = sync_set->data_len;
 	} else {
 		if (aux->rx_last) {
 			aux->rx_last->rx_ftr.extra = rx;
@@ -591,6 +595,8 @@ void ull_scan_aux_setup(memq_link_t *link, struct node_rx_hdr *rx)
 
 	/* Switching to ULL scheduling to receive auxiliary PDUs */
 	if (!IS_ENABLED(CONFIG_BT_CTLR_SYNC_PERIODIC) || lll) {
+		LL_ASSERT(scan);
+
 		/* Do not ULL schedule if scan disable requested */
 		if (unlikely(scan->is_stop)) {
 			goto ull_scan_aux_rx_flush;
@@ -601,14 +607,14 @@ void ull_scan_aux_setup(memq_link_t *link, struct node_rx_hdr *rx)
 		 */
 		lll->lll_aux = NULL;
 	} else {
-		struct ll_sync_set *sync;
+		struct ll_sync_set *sync_set;
 
 		LL_ASSERT(sync_lll &&
 			  (!sync_lll->lll_aux || sync_lll->lll_aux == lll_aux));
 
 		/* Do not ULL schedule if sync terminate requested */
-		sync = HDR_LLL2ULL(sync_lll);
-		if (unlikely(sync->is_stop)) {
+		sync_set = HDR_LLL2ULL(sync_lll);
+		if (unlikely(sync_set->is_stop)) {
 			goto ull_scan_aux_rx_flush;
 		}
 
@@ -660,12 +666,10 @@ void ull_scan_aux_setup(memq_link_t *link, struct node_rx_hdr *rx)
 		HAL_TICKER_US_TO_TICKS(EVENT_OVERHEAD_XTAL_US);
 	aux->ull.ticks_preempt_to_start =
 		HAL_TICKER_US_TO_TICKS(EVENT_OVERHEAD_PREEMPT_MIN_US);
-	aux->ull.ticks_slot =
-		HAL_TICKER_US_TO_TICKS(EVENT_OVERHEAD_START_US +
-				       ready_delay_us +
-				       PDU_AC_MAX_US(PDU_AC_EXT_PAYLOAD_RX_SIZE,
-						     lll_aux->phy) +
-				       EVENT_OVERHEAD_END_US);
+	aux->ull.ticks_slot = HAL_TICKER_US_TO_TICKS_CEIL(
+		EVENT_OVERHEAD_START_US + ready_delay_us +
+		PDU_AC_MAX_US(PDU_AC_EXT_PAYLOAD_RX_SIZE, lll_aux->phy) +
+		EVENT_OVERHEAD_END_US);
 
 	ticks_slot_offset = MAX(aux->ull.ticks_active_to_start,
 				aux->ull.ticks_prepare_to_start);
@@ -677,6 +681,13 @@ void ull_scan_aux_setup(memq_link_t *link, struct node_rx_hdr *rx)
 	ticks_slot_offset += HAL_TICKER_US_TO_TICKS(EVENT_OVERHEAD_START_US);
 
 	ticks_aux_offset = HAL_TICKER_US_TO_TICKS(aux_offset_us);
+
+#if (CONFIG_BT_CTLR_ULL_HIGH_PRIO == CONFIG_BT_CTLR_ULL_LOW_PRIO)
+	/* disable ticker job, in order to chain yield and start to reduce
+	 * CPU use by reducing successive calls to ticker_job().
+	 */
+	mayfly_enable(TICKER_USER_ID_ULL_HIGH, TICKER_USER_ID_ULL_LOW, 0);
+#endif
 
 	/* Yield the primary scan window or auxiliary or periodic sync event
 	 * in ticker.
@@ -710,6 +721,13 @@ void ull_scan_aux_setup(memq_link_t *link, struct node_rx_hdr *rx)
 		  ((ticker_status == TICKER_STATUS_FAILURE) &&
 		   IS_ENABLED(CONFIG_BT_TICKER_LOW_LAT)));
 
+#if (CONFIG_BT_CTLR_ULL_HIGH_PRIO == CONFIG_BT_CTLR_ULL_LOW_PRIO)
+	/* enable ticker job, queued ticker operation will be handled
+	 * thereafter.
+	 */
+	mayfly_enable(TICKER_USER_ID_ULL_HIGH, TICKER_USER_ID_ULL_LOW, 1);
+#endif
+
 	return;
 
 ull_scan_aux_rx_flush:
@@ -724,6 +742,8 @@ ull_scan_aux_rx_flush:
 		 * immediately since we are in sync context.
 		 */
 		if (!IS_ENABLED(CONFIG_BT_CTLR_SYNC_PERIODIC) || aux->rx_last) {
+			LL_ASSERT(scan);
+
 			/* If scan is being disabled, rx could already be
 			 * enqueued before coming here to ull_scan_aux_rx_flush.
 			 * Check if rx not the last in the list of received PDUs
@@ -750,14 +770,14 @@ ull_scan_aux_rx_flush:
 			aux->rx_last->rx_ftr.extra = rx;
 			aux->rx_last = rx;
 		} else {
-			const struct ll_sync_set *sync;
+			const struct ll_sync_set *sync_set;
 
 			LL_ASSERT(sync_lll);
 
 			ll_rx_put_sched(link, rx);
 
-			sync = HDR_LLL2ULL(sync_lll);
-			if (unlikely(sync->is_stop && sync_lll->lll_aux)) {
+			sync_set = HDR_LLL2ULL(sync_lll);
+			if (unlikely(sync_set->is_stop && sync_lll->lll_aux)) {
 				return;
 			}
 		}
@@ -845,12 +865,12 @@ void *ull_scan_aux_lll_parent_get(struct lll_scan_aux *lll,
 
 	if (is_lll_scan) {
 		struct ll_scan_set *scan;
-		struct lll_scan *lll;
+		struct lll_scan *lllscan;
 
-		lll = aux->parent;
-		LL_ASSERT(lll);
+		lllscan = aux->parent;
+		LL_ASSERT(lllscan);
 
-		scan = HDR_LLL2ULL(lll);
+		scan = HDR_LLL2ULL(lllscan);
 		*is_lll_scan = !!ull_scan_is_valid_get(scan);
 	}
 

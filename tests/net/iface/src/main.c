@@ -2,6 +2,7 @@
 
 /*
  * Copyright (c) 2016 Intel Corporation
+ * Copyright (c) 2023 Nordic Semiconductor ASA
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -1067,6 +1068,117 @@ static void get_by_index_from_userspace(void)
 ZTEST(net_iface, test_get_by_index_from_userspace)
 {
 	get_by_index_from_userspace();
+}
+
+static void foreach_ipv4_addr_check(struct net_if *iface,
+				    struct net_if_addr *if_addr,
+				    void *user_data)
+{
+	int *count = (int *)user_data;
+
+	(*count)++;
+
+	zassert_equal_ptr(iface, iface1, "Callback called on wrong interface");
+	zassert_mem_equal(&if_addr->address.in_addr, &my_ipv4_addr1,
+			  sizeof(struct in_addr), "Wrong IPv4 address");
+}
+
+ZTEST(net_iface, test_ipv4_addr_foreach)
+{
+	int count = 0;
+
+	/* iface1 has one IPv4 address configured */
+	net_if_ipv4_addr_foreach(iface1, foreach_ipv4_addr_check, &count);
+	zassert_equal(count, 1, "Incorrect number of callback calls");
+
+	count = 0;
+
+	/* iface4 has no IPv4 address configured */
+	net_if_ipv4_addr_foreach(iface4, foreach_ipv4_addr_check, &count);
+	zassert_equal(count, 0, "Incorrect number of callback calls");
+}
+
+static void foreach_ipv6_addr_check(struct net_if *iface,
+				    struct net_if_addr *if_addr,
+				    void *user_data)
+{
+	int *count = (int *)user_data;
+
+	(*count)++;
+
+	zassert_equal_ptr(iface, iface1, "Callback called on wrong interface");
+
+	if (net_ipv6_is_ll_addr(&if_addr->address.in6_addr)) {
+		zassert_mem_equal(&if_addr->address.in6_addr, &ll_addr,
+				  sizeof(struct in6_addr), "Wrong IPv6 address");
+	} else {
+		zassert_mem_equal(&if_addr->address.in6_addr, &my_addr1,
+				  sizeof(struct in6_addr), "Wrong IPv6 address");
+	}
+}
+
+ZTEST(net_iface, test_ipv6_addr_foreach)
+{
+	int count = 0;
+
+	/* iface1 has two IPv6 addresses configured */
+	net_if_ipv6_addr_foreach(iface1, foreach_ipv6_addr_check, &count);
+	zassert_equal(count, 2, "Incorrect number of callback calls");
+
+	count = 0;
+
+	/* iface4 has no IPv6 address configured */
+	net_if_ipv6_addr_foreach(iface4, foreach_ipv6_addr_check, &count);
+	zassert_equal(count, 0, "Incorrect number of callback calls");
+}
+
+ZTEST(net_iface, test_interface_name)
+{
+	int ret;
+
+#if defined(CONFIG_NET_INTERFACE_NAME)
+	char buf[CONFIG_NET_INTERFACE_NAME_LEN + 1];
+	struct net_if *iface;
+	char *name;
+
+	iface = net_if_get_default();
+	memset(buf, 0, sizeof(buf));
+
+	ret = net_if_get_name(NULL, NULL, -1);
+	zassert_equal(ret, -EINVAL, "Unexpected value returned");
+
+	ret = net_if_get_name(iface, NULL, -1);
+	zassert_equal(ret, -EINVAL, "Unexpected value returned");
+
+	ret = net_if_get_name(iface, buf, 0);
+	zassert_equal(ret, -EINVAL, "Unexpected value returned");
+
+	name = "mynetworkiface0";
+	ret = net_if_set_name(iface, name);
+	zassert_equal(ret, -ENAMETOOLONG, "Unexpected value (%d) returned", ret);
+
+	name = "eth0";
+	ret = net_if_set_name(iface, name);
+	zassert_equal(ret, 0, "Unexpected value (%d) returned", ret);
+
+	ret = net_if_get_name(iface, buf, 1);
+	zassert_equal(ret, -ERANGE, "Unexpected value (%d) returned", ret);
+
+	ret = net_if_get_name(iface, buf, strlen(name) - 1);
+	zassert_equal(ret, -ERANGE, "Unexpected value (%d) returned", ret);
+
+	ret = net_if_get_name(iface, buf, sizeof(buf) - 1);
+	zassert_equal(ret, strlen(name), "Unexpected value (%d) returned", ret);
+
+	ret = net_if_get_by_name(name);
+	zassert_equal(ret, net_if_get_by_iface(iface), "Unexpected value (%d) returned", ret);
+
+	ret = net_if_get_by_name("ENOENT");
+	zassert_equal(ret, -ENOENT, "Unexpected value (%d) returned", ret);
+#else
+	ret = net_if_get_name(NULL, NULL, -1);
+	zassert_equal(ret, -ENOTSUP, "Invalid value returned");
+#endif
 }
 
 ZTEST_SUITE(net_iface, NULL, iface_setup, NULL, NULL, iface_teardown);

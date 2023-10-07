@@ -27,6 +27,15 @@
 		. = ALIGN(CONFIG_ARCH_SW_ISR_TABLE_ALIGN);
 		*(_SW_ISR_TABLE_SECTION_SYMS)
 	} GROUP_DATA_LINK_IN(RAMABLE_REGION, ROMABLE_REGION)
+
+#if defined(CONFIG_SHARED_INTERRUPTS)
+	SECTION_DATA_PROLOGUE(shared_sw_isr_table,,)
+	{
+		/* TODO: does this section require alignment? */
+		KEEP(*(_SHARED_SW_ISR_TABLE_SECTION_SYMS))
+	} GROUP_DATA_LINK_IN(RAMABLE_REGION, ROMABLE_REGION)
+#endif
+
 #endif
 
         SECTION_DATA_PROLOGUE(device_states,,)
@@ -75,7 +84,10 @@
 	ITERABLE_SECTION_RAM_GC_ALLOWED(k_sem, 4)
 	ITERABLE_SECTION_RAM_GC_ALLOWED(k_event, 4)
 	ITERABLE_SECTION_RAM_GC_ALLOWED(k_queue, 4)
+	ITERABLE_SECTION_RAM_GC_ALLOWED(k_fifo, 4)
+	ITERABLE_SECTION_RAM_GC_ALLOWED(k_lifo, 4)
 	ITERABLE_SECTION_RAM_GC_ALLOWED(k_condvar, 4)
+	ITERABLE_SECTION_RAM_GC_ALLOWED(sys_mem_blocks_ptr, 4)
 
 	ITERABLE_SECTION_RAM(net_buf_pool, 4)
 
@@ -123,6 +135,11 @@
 #if defined(CONFIG_SENSING)
 	ITERABLE_SECTION_RAM(sensing_sensor, 4)
 #endif /* CONFIG_SENSING */
+
+#if defined(CONFIG_ZBUS)
+	ITERABLE_SECTION_RAM(zbus_observer, 4)
+	ITERABLE_SECTION_RAM(zbus_channel_observation_mask, 1)
+#endif /* CONFIG_ZBUS */
 
 #ifdef CONFIG_USERSPACE
 	_static_kernel_objects_end = .;

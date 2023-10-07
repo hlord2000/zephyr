@@ -147,8 +147,9 @@ static void gpio_qdec_irq_setup(const struct device *dev, bool enable)
 
 static void gpio_qdec_idle_worker(struct k_work *work)
 {
+	struct k_work_delayable *dwork = k_work_delayable_from_work(work);
 	struct gpio_qdec_data *data = CONTAINER_OF(
-			work, struct gpio_qdec_data, idle_work);
+			dwork, struct gpio_qdec_data, idle_work);
 	const struct device *dev = data->dev;
 
 	k_timer_stop(&data->sample_timer);
@@ -204,7 +205,11 @@ static int gpio_qdec_init(const struct device *dev)
 			return ret;
 		}
 
-		gpio_add_callback_dt(gpio, &data->gpio_cb);
+		ret = gpio_add_callback_dt(gpio, &data->gpio_cb);
+		if (ret < 0) {
+			LOG_ERR("Could not set gpio callback");
+			return ret;
+		}
 	}
 
 	data->prev_step = gpio_qdec_get_step(dev);

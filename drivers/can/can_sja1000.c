@@ -23,19 +23,14 @@ static inline void can_sja1000_write_reg(const struct device *dev, uint8_t reg, 
 {
 	const struct can_sja1000_config *config = dev->config;
 
-	LOG_DBG("write reg %d = 0x%02x", reg, val);
 	return config->write_reg(dev, reg, val);
 }
 
 static inline uint8_t can_sja1000_read_reg(const struct device *dev, uint8_t reg)
 {
 	const struct can_sja1000_config *config = dev->config;
-	uint8_t val;
 
-	val = config->read_reg(dev, reg);
-	LOG_DBG("read reg %d = 0x%02x", reg, val);
-
-	return val;
+	return config->read_reg(dev, reg);
 }
 
 static inline int can_sja1000_enter_reset_mode(const struct device *dev)
@@ -107,13 +102,6 @@ int can_sja1000_set_timing(const struct device *dev, const struct can_timing *ti
 	struct can_sja1000_data *data = dev->data;
 	uint8_t btr0;
 	uint8_t btr1;
-	uint8_t sjw;
-
-	__ASSERT_NO_MSG(timing->sjw == CAN_SJW_NO_CHANGE || (timing->sjw >= 1 && timing->sjw <= 4));
-	__ASSERT_NO_MSG(timing->prop_seg == 0);
-	__ASSERT_NO_MSG(timing->phase_seg1 >= 1 && timing->phase_seg1 <= 16);
-	__ASSERT_NO_MSG(timing->phase_seg2 >= 1 && timing->phase_seg2 <= 8);
-	__ASSERT_NO_MSG(timing->prescaler >= 1 && timing->prescaler <= 64);
 
 	if (data->started) {
 		return -EBUSY;
@@ -121,15 +109,8 @@ int can_sja1000_set_timing(const struct device *dev, const struct can_timing *ti
 
 	k_mutex_lock(&data->mod_lock, K_FOREVER);
 
-	if (timing->sjw == CAN_SJW_NO_CHANGE) {
-		sjw = data->sjw;
-	} else {
-		sjw = timing->sjw;
-		data->sjw = timing->sjw;
-	}
-
 	btr0 = CAN_SJA1000_BTR0_BRP_PREP(timing->prescaler - 1) |
-	       CAN_SJA1000_BTR0_SJW_PREP(sjw - 1);
+	       CAN_SJA1000_BTR0_SJW_PREP(timing->sjw - 1);
 	btr1 = CAN_SJA1000_BTR1_TSEG1_PREP(timing->phase_seg1 - 1) |
 	       CAN_SJA1000_BTR1_TSEG2_PREP(timing->phase_seg2 - 1);
 
@@ -668,7 +649,7 @@ int can_sja1000_init(const struct device *dev)
 {
 	const struct can_sja1000_config *config = dev->config;
 	struct can_sja1000_data *data = dev->data;
-	struct can_timing timing;
+	struct can_timing timing = { 0 };
 	int err;
 
 	__ASSERT_NO_MSG(config->read_reg != NULL);
@@ -708,10 +689,6 @@ int can_sja1000_init(const struct device *dev)
 	can_sja1000_write_reg(dev, CAN_SJA1000_AMR2, 0xFF);
 	can_sja1000_write_reg(dev, CAN_SJA1000_AMR3, 0xFF);
 
-	/* Calculate initial timing parameters */
-	data->sjw = config->sjw;
-	timing.sjw = CAN_SJW_NO_CHANGE;
-
 	if (config->sample_point != 0) {
 		err = can_calc_timing(dev, &timing, config->bitrate, config->sample_point);
 		if (err == -EINVAL) {
@@ -721,6 +698,7 @@ int can_sja1000_init(const struct device *dev)
 
 		LOG_DBG("initial sample point error: %d", err);
 	} else {
+		timing.sjw = config->sjw;
 		timing.prop_seg = 0;
 		timing.phase_seg1 = config->phase_seg1;
 		timing.phase_seg2 = config->phase_seg2;

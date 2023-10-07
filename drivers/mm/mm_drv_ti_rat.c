@@ -19,6 +19,7 @@
  * the address space.
  */
 
+#include <zephyr/kernel.h>
 #include <zephyr/drivers/mm/rat.h>
 #include <zephyr/drivers/mm/system_mm.h>
 #include <zephyr/sys/__assert.h>
@@ -104,7 +105,7 @@ int sys_mm_drv_page_phys_get(void *virt, uintptr_t *phys)
 
 	uint32_t found, regionId;
 
-	__ASSERT(translate_config.num_regions < address_trans_MAX_REGIONS,
+	__ASSERT(translate_config.num_regions < ADDR_TRANSLATE_MAX_REGIONS,
 		 "Exceeding maximum number of regions");
 
 	found = 0;

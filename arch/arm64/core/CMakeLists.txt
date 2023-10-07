@@ -43,6 +43,7 @@ if ((CONFIG_MP_MAX_NUM_CPUS GREATER 1) OR (CONFIG_SMP))
 endif ()
 
 zephyr_cc_option_ifdef(CONFIG_USERSPACE -mno-outline-atomics)
+zephyr_cc_option_ifdef(CONFIG_ARM64_ENABLE_FRAME_POINTER -mno-omit-leaf-frame-pointer)
 
 # GCC may generate ldp/stp instructions with the Advanced SIMD Qn registers for
 # consecutive 32-byte loads and stores. Saving and restoring the Advanced SIMD
@@ -53,4 +54,4 @@ if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
   zephyr_cc_option(-moverride=tune=no_ldp_stp_qregs)
 endif()
 
-add_subdirectory_ifdef(CONFIG_SOC_XENVM xen)
+add_subdirectory_ifdef(CONFIG_XEN xen)

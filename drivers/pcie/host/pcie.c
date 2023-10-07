@@ -8,13 +8,17 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(pcie, LOG_LEVEL_ERR);
 
+#include <zephyr/init.h>
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
 #include <zephyr/sys/check.h>
 #include <stdbool.h>
 #include <zephyr/drivers/pcie/pcie.h>
 #include <zephyr/sys/iterable_sections.h>
+
+#ifdef CONFIG_ACPI
 #include <zephyr/acpi/acpi.h>
+#endif
 
 #if CONFIG_PCIE_MSI
 #include <zephyr/drivers/pcie/msi.h>
@@ -287,11 +291,11 @@ unsigned int pcie_alloc_irq(pcie_bdf_t bdf)
 	    irq >= CONFIG_MAX_IRQ_LINES ||
 	    arch_irq_is_used(irq)) {
 
-		if (IS_ENABLED(CONFIG_ACPI)) {
-			irq = acpi_legacy_irq_get(bdf);
-		} else {
-			irq = arch_irq_allocate();
-		}
+#ifdef CONFIG_PCIE_PRT
+		irq = acpi_legacy_irq_get(bdf);
+#else
+		irq = arch_irq_allocate();
+#endif
 
 		if (irq == UINT_MAX) {
 			return PCIE_CONF_INTR_IRQ_NONE;

@@ -196,6 +196,11 @@ Artificially long but functional example:
         help="""Only run device tests with current artifacts, do not build
              the code""")
 
+    parser.add_argument("--timeout-multiplier", type=float, default=1,
+        help="""Globally adjust tests timeouts by specified multiplier. The resulting test
+        timeout would be multiplication of test timeout value, board-level timeout multiplier
+        and global timeout multiplier (this parameter)""")
+
     test_xor_subtest.add_argument(
         "-s", "--test", action="append",
         help="Run only the specified testsuite scenario. These are named by "
@@ -299,9 +304,8 @@ structure in the main Zephyr tree: boards/<arch>/<board_name>/""")
 
     parser.add_argument("--coverage-formats", action="store", default=None, # default behavior is set in run_coverage
                         help="Output formats to use for generated coverage reports, as a comma-separated list. "
-                             "Only used in conjunction with gcovr. "
                              "Default to html. "
-                             "Valid options are html, xml, csv, txt, coveralls, sonarqube.")
+                             "Valid options are html, xml, csv, txt, coveralls, sonarqube, lcov.")
 
     parser.add_argument("--test-config", action="store", default=os.path.join(ZEPHYR_BASE, "tests", "test_config.yaml"),
         help="Path to file with plans and test configurations.")
@@ -438,6 +442,21 @@ structure in the main Zephyr tree: boards/<arch>/<board_name>/""")
         help="Re-use the outdir before building. Will result in "
              "faster compilation since builds will be incremental.")
 
+    parser.add_argument(
+        '--detailed-test-id', action='store_true',
+        help="Include paths to tests' locations in tests' names. Names will follow "
+             "PATH_TO_TEST/SCENARIO_NAME schema "
+             "e.g. samples/hello_world/sample.basic.helloworld")
+
+    parser.add_argument(
+        "--no-detailed-test-id", dest='detailed_test_id', action="store_false",
+        help="Don't put paths into tests' names. "
+             "With this arg a test name will be a scenario name "
+             "e.g. sample.basic.helloworld.")
+
+    # Include paths in names by default.
+    parser.set_defaults(detailed_test_id=True)
+
     # To be removed in favor of --detailed-skipped-report
     parser.add_argument(
         "--no-skipped-report", action="store_true",
@@ -481,6 +500,10 @@ structure in the main Zephyr tree: boards/<arch>/<board_name>/""")
                         persistent names for serial devices on platforms
                         that support this feature (currently only Linux).
                         """)
+
+    parser.add_argument(
+            "--vendor", action="append", default=[],
+            help="Vendor filter for testing")
 
     parser.add_argument(
         "-p", "--platform", action="append", default=[],
@@ -729,12 +752,8 @@ def parse_arguments(parser, args, options = None):
                         only one platform is allowed""")
         sys.exit(1)
 
-    if options.device_flash_timeout and options.device_testing is None:
-        logger.error("--device-flash-timeout requires --device-testing")
-        sys.exit(1)
-
-    if options.device_flash_with_test and options.device_testing is None:
-        logger.error("--device-flash-with-test requires --device-testing")
+    if options.device_flash_with_test and not options.device_testing:
+        logger.error("--device-flash-with-test requires --device_testing")
         sys.exit(1)
 
     if options.shuffle_tests and options.subset is None:
@@ -745,17 +764,12 @@ def parse_arguments(parser, args, options = None):
         logger.error("--shuffle-tests-seed requires --shuffle-tests")
         sys.exit(1)
 
-    if options.coverage_formats and (options.coverage_tool != "gcovr"):
-        logger.error("""--coverage-formats can only be used when coverage
-                        tool is set to gcovr""")
-        sys.exit(1)
-
     if options.size:
         from twisterlib.size_calc import SizeCalculator
         for fn in options.size:
             sc = SizeCalculator(fn, [])
             sc.size_report()
-        sys.exit(1)
+        sys.exit(0)
 
     if len(options.extra_test_args) > 0:
         # extra_test_args is a list of CLI args that Twister did not recognize
@@ -796,11 +810,12 @@ def parse_arguments(parser, args, options = None):
 class TwisterEnv:
 
     def __init__(self, options=None) -> None:
-        self.version = None
+        self.version = "Unknown"
         self.toolchain = None
-        self.commit_date = None
+        self.commit_date = "Unknown"
         self.run_date = None
         self.options = options
+
         if options and options.ninja:
             self.generator_cmd = "ninja"
             self.generator = "Ninja"
@@ -809,10 +824,8 @@ class TwisterEnv:
             self.generator = "Unix Makefiles"
         logger.info(f"Using {self.generator}..")
 
-        if options:
-            self.test_roots = options.testsuite_root
-        else:
-            self.test_roots = None
+        self.test_roots = options.testsuite_root if options else None
+
         if options:
             if not isinstance(options.board_root, list):
                 self.board_roots = [self.options.board_root]
@@ -825,9 +838,9 @@ class TwisterEnv:
 
         self.hwm = None
 
-        self.test_config = options.test_config
+        self.test_config = options.test_config if options else None
 
-        self.alt_config_root = options.alt_config_root
+        self.alt_config_root = options.alt_config_root if options else None
 
     def discover(self):
         self.check_zephyr_version()
@@ -845,20 +858,21 @@ class TwisterEnv:
                 if _version:
                     self.version = _version
                     logger.info(f"Zephyr version: {self.version}")
-                else:
-                    self.version = "Unknown"
-                    logger.error("Coult not determine version")
         except OSError:
-            logger.info("Cannot read zephyr version.")
+            logger.exception("Failure while reading Zephyr version.")
 
-        subproc = subprocess.run(["git", "show", "-s", "--format=%cI", "HEAD"],
-                                     stdout=subprocess.PIPE,
-                                     universal_newlines=True,
-                                     cwd=ZEPHYR_BASE)
-        if subproc.returncode == 0:
-            self.commit_date = subproc.stdout.strip()
-        else:
-            self.commit_date = "Unknown"
+        if self.version == "Unknown":
+            logger.warning("Could not determine version")
+
+        try:
+            subproc = subprocess.run(["git", "show", "-s", "--format=%cI", "HEAD"],
+                                        stdout=subprocess.PIPE,
+                                        universal_newlines=True,
+                                        cwd=ZEPHYR_BASE)
+            if subproc.returncode == 0:
+                self.commit_date = subproc.stdout.strip()
+        except OSError:
+            logger.exception("Failure while reading head commit date.")
 
     @staticmethod
     def run_cmake_script(args=[]):
@@ -893,7 +907,7 @@ class TwisterEnv:
         out = ansi_escape.sub('', out.decode())
 
         if p.returncode == 0:
-            msg = "Finished running  %s" % (args[0])
+            msg = "Finished running %s" % (args[0])
             logger.debug(msg)
             results = {"returncode": p.returncode, "msg": msg, "stdout": out}
 

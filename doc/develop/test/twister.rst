@@ -195,6 +195,14 @@ testing:
   only_tags:
     Only execute tests with this list of tags on a specific platform.
 
+  .. _twister_board_timeout_multiplier:
+
+  timeout_multiplier: <float> (default 1)
+    Multiply each test case timeout by specified ratio. This option allows to tune timeouts only
+    for required platform. It can be useful in case naturally slow platform I.e.: HW board with
+    power-efficient but slow CPU or simulation platform which can perform instruction accurate
+    simulation but does it slowly.
+
 Test Cases
 **********
 
@@ -359,6 +367,8 @@ min_flash: <integer>
     minimum amount of ROM in KB needed for this test to build and run. This is
     compared with information provided by the board metadata.
 
+.. _twister_test_case_timeout:
+
 timeout: <number of seconds>
     Length of time to run test before automatically killing it.
     Default to 60 seconds.
@@ -492,10 +502,11 @@ harness_config: <harness configuration options>
         Only one fixture can be defined per testcase and the fixture name has to
         be unique across all tests in the test suite.
 
-    pytest_root: <pytest directory> (default pytest)
-        Specify a pytest directory which need to execute when test case begin to running,
-        default pytest directory name is pytest, after pytest finished, twister will
-        check if this case pass or fail according the pytest report.
+    pytest_root: <list of pytest testpaths> (default pytest)
+        Specify a list of pytest directories, files or subtests that need to be executed
+        when test case begin to running, default pytest directory is pytest.
+        After pytest finished, twister will check if this case pass or fail according
+        to the pytest report.
 
     pytest_args: <list of arguments> (default empty)
         Specify a list of additional arguments to pass to ``pytest``.
@@ -526,15 +537,24 @@ harness_config: <harness configuration options>
 
     The following is an example yaml file with pytest harness_config options,
     default pytest_root name "pytest" will be used if pytest_root not specified.
-    please refer the example in samples/subsys/testsuite/pytest/.
+    please refer the examples in samples/subsys/testsuite/pytest/.
 
     ::
 
+        common:
+          harness: pytest
         tests:
-          pytest.example:
-            harness: pytest
+          pytest.example.directories:
             harness_config:
-              pytest_root: [pytest directory name]
+              pytest_root:
+                - pytest_dir1
+                - $ENV_VAR/samples/test/pytest_dir2
+          pytest.example.files_and_subtests:
+            harness_config:
+              pytest_root:
+                - pytest/test_file_1.py
+                - test_file_2.py::test_A
+                - test_file_2.py::test_B[param_a]
 
     The following is an example yaml file with robot harness_config options.
 
@@ -561,7 +581,7 @@ filter: <expression>
     Twister will first evaluate the expression to find if a "limited" cmake call, i.e. using package_helper cmake script,
     can be done. Existence of "dt_*" entries indicates devicetree is needed.
     Existence of "CONFIG*" entries indicates kconfig is needed.
-    If there are no other types of entries in the expression a filtration can be done wihout creating a complete build system.
+    If there are no other types of entries in the expression a filtration can be done without creating a complete build system.
     If there are entries of other types a full cmake is required.
 
     The grammar for the expression language is as follows:
@@ -616,6 +636,24 @@ filter: <expression>
 
     Would match it.
 
+required_snippets: <list of needed snippets>
+    :ref:`Snippets <snippets>` are supported in twister for test cases that
+    require them. As with normal applications, twister supports using the base
+    zephyr snippet directory and test application directory for finding
+    snippets. Listed snippets will filter supported tests for boards (snippets
+    must be compatible with a board for the test to run on them, they are not
+    optional).
+
+    The following is an example yaml file with 2 required snippets.
+
+    ::
+
+        tests:
+          snippet.example:
+            required_snippets:
+              - cdc-acm-console
+              - user-snippet-example
+
 The set of test cases that actually run depends on directives in the testcase
 filed and options passed in on the command line. If there is any confusion,
 running with -v or examining the discard report
@@ -632,6 +670,22 @@ line break instead of white spaces.
 
 Most everyday users will run with no arguments.
 
+Managing tests timeouts
+***********************
+
+There are several parameters which control tests timeouts on various levels:
+
+* ``timeout`` option in each test case. See :ref:`here <twister_test_case_timeout>` for more
+  details.
+* ``timeout_multiplier`` option in board configuration. See
+  :ref:`here <twister_board_timeout_multiplier>` for more details.
+* ``--timeout-multiplier`` twister option which can be used to adjust timeouts in exact twister run.
+  It can be useful in case of simulation platform as simulation time may depend on the host
+  speed & load or we may select different simulation method (i.e. cycle accurate but slower
+  one), etc...
+
+Overall test case timeout is a multiplication of these three parameters.
+
 Running in Integration Mode
 ***************************
 
@@ -642,6 +696,42 @@ the scope of builds and tests if applicable to platforms defined under the
 integration keyword in the testcase definition file (testcase.yaml and
 sample.yaml).
 
+
+Running tests on custom emulator
+********************************
+
+Apart from the already supported QEMU and other simulated environments, Twister
+supports running any out-of-tree custom emulator defined in the board's :file:`board.cmake`.
+To use this type of simulation, add the following properties to
+:file:`custom_board/custom_board.yaml`:
+
+::
+
+   simulation: custom
+   simulation_exec: <name_of_emu_binary>
+
+This tells Twister that the board is using a custom emulator called ``<name_of_emu_binary>``,
+make sure this binary exists in the PATH.
+
+Then, in :file:`custom_board/board.cmake`, set the supported emulation platforms to ``custom``:
+
+::
+
+   set(SUPPORTED_EMU_PLATFORMS custom)
+
+Finally, implement the ``run_custom`` target in :file:`custom_board/board.cmake`.
+It should look something like this:
+
+::
+
+   add_custom_target(run_custom
+     COMMAND
+     <name_of_emu_binary to invoke during 'run'>
+     <any args to be passed to the command, i.e. ${BOARD}, ${APPLICATION_BINARY_DIR}/zephyr/zephyr.elf>
+     WORKING_DIRECTORY ${APPLICATION_BINARY_DIR}
+     DEPENDS ${logical_target_for_zephyr_elf}
+     USES_TERMINAL
+     )
 
 Running Tests on Hardware
 *************************
@@ -1044,9 +1134,9 @@ locally. As of now, those options are available:
   CI)
 - Option to specify your own list of default platforms overriding what
   upstream defines.
-- Ability to override `build_onl_all` options used in some testscases.
+- Ability to override `build_onl_all` options used in some testcases.
   This will treat tests or sample as any other just build for default
-  platforms you specify in the configuation file or on the command line.
+  platforms you specify in the configuration file or on the command line.
 - Ignore some logic in twister to expand platform coverage in cases where
   default platforms are not in scope.
 
@@ -1103,7 +1193,7 @@ And example test level configuration::
 Combined configuration
 ======================
 
-To mix the Platform and level confgiuration, you can take an example as below:
+To mix the Platform and level configuration, you can take an example as below:
 
 And example platforms plus level configuration::
 

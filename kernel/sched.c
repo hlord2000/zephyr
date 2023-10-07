@@ -6,8 +6,8 @@
 #include <zephyr/kernel.h>
 #include <ksched.h>
 #include <zephyr/spinlock.h>
-#include <zephyr/kernel/sched_priq.h>
-#include <zephyr/wait_q.h>
+#include <zephyr/kernel/internal/sched_priq.h>
+#include <wait_q.h>
 #include <kswap.h>
 #include <kernel_arch_func.h>
 #include <zephyr/syscall_handler.h>
@@ -66,12 +66,18 @@ static inline int is_preempt(struct k_thread *thread)
 	return thread->base.preempt <= _PREEMPT_THRESHOLD;
 }
 
+BUILD_ASSERT(CONFIG_NUM_COOP_PRIORITIES >= CONFIG_NUM_METAIRQ_PRIORITIES,
+	     "You need to provide at least as many CONFIG_NUM_COOP_PRIORITIES as "
+	     "CONFIG_NUM_METAIRQ_PRIORITIES as Meta IRQs are just a special class of cooperative "
+	     "threads.");
+
 static inline int is_metairq(struct k_thread *thread)
 {
 #if CONFIG_NUM_METAIRQ_PRIORITIES > 0
 	return (thread->base.prio - K_HIGHEST_THREAD_PRIO)
 		< CONFIG_NUM_METAIRQ_PRIORITIES;
 #else
+	ARG_UNUSED(thread);
 	return 0;
 #endif
 }
@@ -214,6 +220,7 @@ static ALWAYS_INLINE void *thread_runq(struct k_thread *thread)
 
 	return &_kernel.cpus[cpu].ready_q.runq;
 #else
+	ARG_UNUSED(thread);
 	return &_kernel.ready_q.runq;
 #endif
 }
@@ -314,9 +321,16 @@ static inline bool is_aborting(struct k_thread *thread)
 
 static ALWAYS_INLINE struct k_thread *next_up(void)
 {
+#ifdef CONFIG_SMP
+	if (is_aborting(_current)) {
+		end_thread(_current);
+	}
+#endif
+
 	struct k_thread *thread = runq_best();
 
-#if (CONFIG_NUM_METAIRQ_PRIORITIES > 0) && (CONFIG_NUM_COOP_PRIORITIES > 0)
+#if (CONFIG_NUM_METAIRQ_PRIORITIES > 0) &&                                                         \
+	(CONFIG_NUM_COOP_PRIORITIES > CONFIG_NUM_METAIRQ_PRIORITIES)
 	/* MetaIRQs must always attempt to return back to a
 	 * cooperative thread they preempted and not whatever happens
 	 * to be highest priority now. The cooperative thread was
@@ -431,6 +445,8 @@ static inline int slice_time(struct k_thread *thread)
 	if (thread->base.slice_ticks != 0) {
 		ret = thread->base.slice_ticks;
 	}
+#else
+	ARG_UNUSED(thread);
 #endif
 	return ret;
 }
@@ -487,11 +503,11 @@ void k_sched_time_slice_set(int32_t slice, int prio)
 }
 
 #ifdef CONFIG_TIMESLICE_PER_THREAD
-void k_thread_time_slice_set(struct k_thread *th, int32_t slice_ticks,
+void k_thread_time_slice_set(struct k_thread *th, int32_t thread_slice_ticks,
 			     k_thread_timeslice_fn_t expired, void *data)
 {
 	K_SPINLOCK(&sched_spinlock) {
-		th->base.slice_ticks = slice_ticks;
+		th->base.slice_ticks = thread_slice_ticks;
 		th->base.slice_expired = expired;
 		th->base.slice_data = data;
 	}
@@ -536,7 +552,8 @@ void z_time_slice(void)
  */
 static void update_metairq_preempt(struct k_thread *thread)
 {
-#if (CONFIG_NUM_METAIRQ_PRIORITIES > 0) && (CONFIG_NUM_COOP_PRIORITIES > 0)
+#if (CONFIG_NUM_METAIRQ_PRIORITIES > 0) &&                                                         \
+	(CONFIG_NUM_COOP_PRIORITIES > CONFIG_NUM_METAIRQ_PRIORITIES)
 	if (is_metairq(thread) && !is_metairq(_current) &&
 	    !is_preempt(_current)) {
 		/* Record new preemption */
@@ -545,6 +562,8 @@ static void update_metairq_preempt(struct k_thread *thread)
 		/* Returning from existing preemption */
 		_current_cpu->metairq_preempted = NULL;
 	}
+#else
+	ARG_UNUSED(thread);
 #endif
 }
 
@@ -594,6 +613,7 @@ static bool thread_active_elsewhere(struct k_thread *thread)
 		}
 	}
 #endif
+	ARG_UNUSED(thread);
 	return false;
 }
 
@@ -1082,10 +1102,6 @@ void *z_get_next_switch_handle(void *interrupted)
 	K_SPINLOCK(&sched_spinlock) {
 		struct k_thread *old_thread = _current, *new_thread;
 
-		if (is_aborting(_current)) {
-			end_thread(_current);
-		}
-
 		if (IS_ENABLED(CONFIG_SMP)) {
 			old_thread->switch_handle = NULL;
 		}
@@ -1144,6 +1160,8 @@ void *z_get_next_switch_handle(void *interrupted)
 
 void z_priq_dumb_remove(sys_dlist_t *pq, struct k_thread *thread)
 {
+	ARG_UNUSED(pq);
+
 	__ASSERT_NO_MSG(!z_is_idle_thread_object(thread));
 
 	sys_dlist_remove(&thread->base.qnode_dlist);
@@ -1571,7 +1589,7 @@ static inline void z_vrfy_k_wakeup(k_tid_t thread)
 #include <syscalls/k_wakeup_mrsh.c>
 #endif
 
-k_tid_t z_impl_z_current_get(void)
+k_tid_t z_impl_k_sched_current_thread_query(void)
 {
 #ifdef CONFIG_SMP
 	/* In SMP, _current is a field read from _current_cpu, which
@@ -1590,11 +1608,11 @@ k_tid_t z_impl_z_current_get(void)
 }
 
 #ifdef CONFIG_USERSPACE
-static inline k_tid_t z_vrfy_z_current_get(void)
+static inline k_tid_t z_vrfy_k_sched_current_thread_query(void)
 {
-	return z_impl_z_current_get();
+	return z_impl_k_sched_current_thread_query();
 }
-#include <syscalls/z_current_get_mrsh.c>
+#include <syscalls/k_sched_current_thread_query_mrsh.c>
 #endif
 
 int z_impl_k_is_preempt_thread(void)
@@ -1612,8 +1630,8 @@ static inline int z_vrfy_k_is_preempt_thread(void)
 
 #ifdef CONFIG_SCHED_CPU_MASK
 # ifdef CONFIG_SMP
-/* Right now we use a single byte for this mask */
-BUILD_ASSERT(CONFIG_MP_MAX_NUM_CPUS <= 8, "Too many CPUs for mask word");
+/* Right now we use a two byte for this mask */
+BUILD_ASSERT(CONFIG_MP_MAX_NUM_CPUS <= 16, "Too many CPUs for mask word");
 # endif
 
 
@@ -1712,12 +1730,23 @@ static void end_thread(struct k_thread *thread)
 		unpend_all(&thread->join_queue);
 		update_cache(1);
 
+#if defined(CONFIG_FPU) && defined(CONFIG_FPU_SHARING)
+		arch_float_disable(thread);
+#endif
+
 		SYS_PORT_TRACING_FUNC(k_thread, sched_abort, thread);
 
 		z_thread_monitor_exit(thread);
 
 #ifdef CONFIG_CMSIS_RTOS_V1
 		z_thread_cmsis_status_mask_clear(thread);
+#endif
+
+#ifdef CONFIG_OBJ_CORE_THREAD
+#ifdef CONFIG_OBJ_CORE_STATS_THREAD
+		k_obj_core_stats_deregister(K_OBJ_CORE(thread));
+#endif
+		k_obj_core_unlink(K_OBJ_CORE(thread));
 #endif
 
 #ifdef CONFIG_USERSPACE

@@ -33,6 +33,7 @@ struct spi_mcux_config {
 	uint32_t sck_pcs_delay;
 	uint32_t transfer_delay;
 	const struct pinctrl_dev_config *pincfg;
+	lpspi_pin_config_t data_pin_config;
 };
 
 #ifdef CONFIG_SPI_MCUX_LPSPI_DMA
@@ -211,6 +212,8 @@ static int spi_mcux_configure(const struct device *dev,
 	master_config.pcsToSckDelayInNanoSec = config->pcs_sck_delay;
 	master_config.lastSckToPcsDelayInNanoSec = config->sck_pcs_delay;
 	master_config.betweenTransferDelayInNanoSec = config->transfer_delay;
+
+	master_config.pinCfg = config->data_pin_config;
 
 	if (!device_is_ready(config->clock_dev)) {
 		LOG_ERR("clock control device not ready");
@@ -502,14 +505,20 @@ out:
 	return ret;
 }
 
+
 static int spi_mcux_transceive(const struct device *dev,
 			       const struct spi_config *spi_cfg,
 			       const struct spi_buf_set *tx_bufs,
 			       const struct spi_buf_set *rx_bufs)
 {
 #ifdef CONFIG_SPI_MCUX_LPSPI_DMA
-	return transceive_dma(dev, spi_cfg, tx_bufs, rx_bufs, false, NULL, NULL);
+	const struct spi_mcux_data *data = dev->data;
+
+	if (data->dma_rx.dma_dev && data->dma_tx.dma_dev) {
+		return transceive_dma(dev, spi_cfg, tx_bufs, rx_bufs, false, NULL, NULL);
+	}
 #endif /* CONFIG_SPI_MCUX_LPSPI_DMA */
+
 	return transceive(dev, spi_cfg, tx_bufs, rx_bufs, false, NULL, NULL);
 }
 
@@ -553,14 +562,16 @@ static int spi_mcux_init(const struct device *dev)
 	data->dev = dev;
 
 #ifdef CONFIG_SPI_MCUX_LPSPI_DMA
-	if (!device_is_ready(data->dma_tx.dma_dev)) {
-		LOG_ERR("%s device is not ready", data->dma_tx.dma_dev->name);
-		return -ENODEV;
-	}
+	if (data->dma_tx.dma_dev && data->dma_rx.dma_dev) {
+		if (!device_is_ready(data->dma_tx.dma_dev)) {
+			LOG_ERR("%s device is not ready", data->dma_tx.dma_dev->name);
+			return -ENODEV;
+		}
 
-	if (!device_is_ready(data->dma_rx.dma_dev)) {
-		LOG_ERR("%s device is not ready", data->dma_rx.dma_dev->name);
-		return -ENODEV;
+		if (!device_is_ready(data->dma_rx.dma_dev)) {
+			LOG_ERR("%s device is not ready", data->dma_rx.dma_dev->name);
+			return -ENODEV;
+		}
 	}
 #endif /* CONFIG_SPI_MCUX_LPSPI_DMA */
 
@@ -583,33 +594,39 @@ static const struct spi_driver_api spi_mcux_driver_api = {
 };
 
 #ifdef CONFIG_SPI_MCUX_LPSPI_DMA
-#define SPI_DMA_CHANNELS(n)		\
-	.dma_tx = {						\
-		.dma_dev = DEVICE_DT_GET(DT_INST_DMAS_CTLR_BY_NAME(n, tx)), \
-		.channel =					\
-			DT_INST_DMAS_CELL_BY_NAME(n, tx, mux),	\
-		.dma_cfg = {					\
-			.channel_direction = MEMORY_TO_PERIPHERAL,	\
-			.dma_callback = spi_mcux_dma_callback,		\
-			.source_data_size = 1,				\
-			.dest_data_size = 1,				\
-			.block_count = 1,		\
-			.dma_slot = DT_INST_DMAS_CELL_BY_NAME(n, tx, source) \
-		}							\
-	},								\
-	.dma_rx = {						\
-		.dma_dev = DEVICE_DT_GET(DT_INST_DMAS_CTLR_BY_NAME(n, rx)), \
-		.channel =					\
-			DT_INST_DMAS_CELL_BY_NAME(n, rx, mux),	\
-		.dma_cfg = {				\
-			.channel_direction = PERIPHERAL_TO_MEMORY,	\
-			.dma_callback = spi_mcux_dma_callback,		\
-			.source_data_size = 1,				\
-			.dest_data_size = 1,				\
-			.block_count = 1,		\
-			.dma_slot = DT_INST_DMAS_CELL_BY_NAME(n, rx, source) \
-		}							\
-	}
+#define SPI_DMA_CHANNELS(n)								\
+	IF_ENABLED(DT_INST_DMAS_HAS_NAME(n, tx),					\
+	(										\
+		.dma_tx = {								\
+			.dma_dev = DEVICE_DT_GET(DT_INST_DMAS_CTLR_BY_NAME(n, tx)),	\
+			.channel =							\
+				DT_INST_DMAS_CELL_BY_NAME(n, tx, mux),			\
+			.dma_cfg = {							\
+				.channel_direction = MEMORY_TO_PERIPHERAL,		\
+				.dma_callback = spi_mcux_dma_callback,			\
+				.source_data_size = 1,					\
+				.dest_data_size = 1,					\
+				.block_count = 1,					\
+				.dma_slot = DT_INST_DMAS_CELL_BY_NAME(n, tx, source)	\
+			}								\
+		},									\
+	))										\
+	IF_ENABLED(DT_INST_DMAS_HAS_NAME(n, rx),					\
+	(										\
+		.dma_rx = {								\
+			.dma_dev = DEVICE_DT_GET(DT_INST_DMAS_CTLR_BY_NAME(n, rx)),	\
+			.channel =							\
+				DT_INST_DMAS_CELL_BY_NAME(n, rx, mux),			\
+			.dma_cfg = {							\
+				.channel_direction = PERIPHERAL_TO_MEMORY,		\
+				.dma_callback = spi_mcux_dma_callback,			\
+				.source_data_size = 1,					\
+				.dest_data_size = 1,					\
+				.block_count = 1,					\
+				.dma_slot = DT_INST_DMAS_CELL_BY_NAME(n, rx, source)	\
+			}								\
+		}									\
+	))
 #else
 #define SPI_DMA_CHANNELS(n)
 #endif /* CONFIG_SPI_MCUX_LPSPI_DMA */
@@ -635,6 +652,7 @@ static const struct spi_driver_api spi_mcux_driver_api = {
 			DT_INST_NODE_HAS_PROP(n, transfer_delay),	\
 			DT_INST_PROP(n, transfer_delay)),		\
 		.pincfg = PINCTRL_DT_INST_DEV_CONFIG_GET(n),		\
+		.data_pin_config = DT_INST_ENUM_IDX(n, data_pin_config),\
 	};								\
 									\
 	static struct spi_mcux_data spi_mcux_data_##n = {		\

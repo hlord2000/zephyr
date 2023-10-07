@@ -19,7 +19,7 @@
 #include <zephyr/drivers/uart.h>
 #include <zephyr/linker/sections.h>
 #include <zephyr/arch/cpu.h>
-#include <aarch32/cortex_m/exc.h>
+#include <cortex_m/exc.h>
 #include <fsl_power.h>
 #include <fsl_clock.h>
 #include <fsl_common.h>
@@ -298,6 +298,7 @@ static ALWAYS_INLINE void clock_init(void)
 #endif
 
 	DT_FOREACH_STATUS_OKAY(nxp_lpc_ctimer, CTIMER_CLOCK_SETUP)
+	DT_FOREACH_STATUS_OKAY(nxp_ctimer_pwm, CTIMER_CLOCK_SETUP)
 
 #if (DT_NODE_HAS_COMPAT_STATUS(DT_NODELABEL(i3c0), nxp_mcux_i3c, okay))
 	CLOCK_AttachClk(kFFRO_to_I3C_CLK);

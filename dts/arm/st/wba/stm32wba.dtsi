@@ -18,6 +18,7 @@
 
 / {
 	chosen {
+		zephyr,entropy = &rng;
 		zephyr,flash-controller = &flash;
 	};
 
@@ -29,6 +30,7 @@
 			device_type = "cpu";
 			compatible = "arm,cortex-m33";
 			reg = <0>;
+			cpu-power-states = <&stop0 &stop1>;
 			#address-cells = <1>;
 			#size-cells = <1>;
 
@@ -36,6 +38,21 @@
 				compatible = "arm,armv8m-mpu";
 				reg = <0xe000ed90 0x40>;
 				arm,num-mpu-regions = <8>;
+			};
+		};
+
+		power-states {
+			stop0: state0 {
+				compatible = "zephyr,power-state";
+				power-state-name = "suspend-to-idle";
+				substate-id = <1>;
+				min-residency-us = <100>;
+			};
+			stop1: state1 {
+				compatible = "zephyr,power-state";
+				power-state-name = "suspend-to-idle";
+				substate-id = <2>;
+				min-residency-us = <500>;
 			};
 		};
 	};
@@ -171,6 +188,20 @@
 			};
 		};
 
+		iwdg: watchdog@40003000 {
+			compatible = "st,stm32-watchdog";
+			reg = <0x40003000 0x400>;
+			status = "disabled";
+		};
+
+		wwdg: watchdog@40002c00 {
+			compatible = "st,stm32-window-watchdog";
+			reg = <0x40002C00 0x400>;
+			clocks = <&rcc STM32_CLOCK_BUS_APB1 0x00000800>;
+			interrupts = <0 7>;
+			status = "disabled";
+		};
+
 		usart1: serial@40013800 {
 			compatible = "st,stm32-usart", "st,stm32-uart";
 			reg = <0x40013800 0x400>;
@@ -251,6 +282,11 @@
 			interrupt-names = "brk", "up", "trgcom", "cc";
 			st,prescaler = <0>;
 			status = "disabled";
+
+			counter {
+				compatible = "st,stm32-counter";
+				status = "disabled";
+			};
 
 			pwm {
 				compatible = "st,stm32-pwm";
@@ -352,15 +388,14 @@
 			interrupts = <65 0>;
 			status = "disabled";
 			#io-channel-cells = <1>;
-			temp-channel = <19>;
-			vref-channel = <0>;
-			vbat-channel = <18>;
 			resolutions = <STM32_ADC_RES(12, 0x00)
 				       STM32_ADC_RES(10, 0x01)
 				       STM32_ADC_RES(8, 0x02)
 				       STM32_ADC_RES(6, 0x03)>;
 			sampling-times = <2 4 8 13 20 40 80 815>;
 			num-sampling-time-common-channels = <2>;
+			st,adc-clock-source = <ASYNC>;
+			st,adc-sequencer = <NOT_FULLY_CONFIGURABLE>;
 		};
 
 		lptim1: timers@46004400 {
@@ -382,6 +417,17 @@
 			clocks = <&rcc STM32_CLOCK_BUS_APB1_2 0x00000020>;
 			interrupts = <50 1>;
 			interrupt-names = "wakeup";
+			status = "disabled";
+		};
+
+		rng: rng@520c0800 {
+			compatible = "st,stm32-rng";
+			reg = <0x520c0800 0x400>;
+			interrupts = <59 0>;
+			clocks = <&rcc STM32_CLOCK_BUS_AHB2 0x00040000>,
+				 <&rcc STM32_SRC_PLL1_Q RNG_SEL(3)>;
+			nist-config = <0xf00d>;
+			health-test-config = <0xaac7>;
 			status = "disabled";
 		};
 	};

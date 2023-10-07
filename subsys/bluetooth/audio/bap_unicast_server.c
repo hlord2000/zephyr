@@ -86,9 +86,7 @@ int bt_bap_unicast_server_reconfig(struct bt_bap_stream *stream,
 
 	(void)memcpy(&ep->codec_cfg, codec_cfg, sizeof(*codec_cfg));
 
-	ascs_ep_set_state(ep, BT_BAP_EP_STATE_CODEC_CONFIGURED);
-
-	return 0;
+	return ascs_ep_set_state(ep, BT_BAP_EP_STATE_CODEC_CONFIGURED);
 }
 
 int bt_bap_unicast_server_start(struct bt_bap_stream *stream)
@@ -106,28 +104,32 @@ int bt_bap_unicast_server_start(struct bt_bap_stream *stream)
 	 * else wait for ISO to be connected
 	 */
 	if (ep->iso->chan.state == BT_ISO_STATE_CONNECTED) {
-		ascs_ep_set_state(ep, BT_BAP_EP_STATE_STREAMING);
-	} else {
-		ep->receiver_ready = true;
+		return ascs_ep_set_state(ep, BT_BAP_EP_STATE_STREAMING);
 	}
+
+	ep->receiver_ready = true;
 
 	return 0;
 }
 
-int bt_bap_unicast_server_metadata(struct bt_bap_stream *stream, struct bt_audio_codec_data meta[],
-				   size_t meta_count)
+int bt_bap_unicast_server_metadata(struct bt_bap_stream *stream, const uint8_t meta[],
+				   size_t meta_len)
 {
 	struct bt_bap_ep *ep;
 	struct bt_bap_ascs_rsp rsp = BT_BAP_ASCS_RSP(BT_BAP_ASCS_RSP_CODE_SUCCESS,
 						     BT_BAP_ASCS_REASON_NONE);
 	int err;
 
+	if (meta_len > sizeof(ep->codec_cfg.meta)) {
+		return -ENOMEM;
+	}
 
 	if (unicast_server_cb != NULL && unicast_server_cb->metadata != NULL) {
-		err = unicast_server_cb->metadata(stream, meta, meta_count, &rsp);
+		err = unicast_server_cb->metadata(stream, meta, meta_len, &rsp);
 	} else {
 		err = -ENOTSUP;
 	}
+
 
 	if (err) {
 		LOG_ERR("Metadata failed: err %d, code %u, reason %u", err, rsp.code, rsp.reason);
@@ -135,14 +137,10 @@ int bt_bap_unicast_server_metadata(struct bt_bap_stream *stream, struct bt_audio
 	}
 
 	ep = stream->ep;
-	for (size_t i = 0U; i < meta_count; i++) {
-		(void)memcpy(&ep->codec_cfg.meta[i], &meta[i], sizeof(ep->codec_cfg.meta[i]));
-	}
+	(void)memcpy(ep->codec_cfg.meta, meta, meta_len);
 
 	/* Set the state to the same state to trigger the notifications */
-	ascs_ep_set_state(ep, ep->status.state);
-
-	return 0;
+	return ascs_ep_set_state(ep, ep->status.state);
 }
 
 int bt_bap_unicast_server_disable(struct bt_bap_stream *stream)

@@ -19,10 +19,6 @@ config FXOS8700_DRDY_INT1
 	default y
 	depends on FXOS8700_TRIGGER
 
-# Allocate LVGL buffers in custom section
-config LV_Z_VBD_CUSTOM_SECTION
-	default y if LVGL
-
 if DMA_MCUX_LPC
 
 # Memory from the heap pool is used to allocate DMA descriptors for
@@ -33,14 +29,13 @@ config HEAP_MEM_POOL_SIZE
 
 endif # DMA_MCUX_LPC
 
-if PM
 # Turn on Device Level Power Management as we wish
 # to reconfigure the FlexSPI pins for power savings
 # when transitioning the SoC to Deep Low Power modes.
 config PM_DEVICE
-	default y
+	default y if PM
+
 config REGULATOR
-	default y
-endif # PM
+	default y if PM || POWEROFF
 
 endif # BOARD_MIMXRT595_EVK

@@ -170,8 +170,8 @@ struct ec_host_cmd_handler {
  */
 #define EC_HOST_CMD_HANDLER(_id, _function, _version_mask, _request_type, _response_type)          \
 	const STRUCT_SECTION_ITERABLE(ec_host_cmd_handler, __cmd##_id) = {                         \
-		.id = _id,                                                                         \
 		.handler = _function,                                                              \
+		.id = _id,                                                                         \
 		.version_mask = _version_mask,                                                     \
 		.min_rqt_size = sizeof(_request_type),                                             \
 		.min_rsp_size = sizeof(_response_type),                                            \
@@ -190,8 +190,8 @@ struct ec_host_cmd_handler {
  */
 #define EC_HOST_CMD_HANDLER_UNBOUND(_id, _function, _version_mask)                                 \
 	const STRUCT_SECTION_ITERABLE(ec_host_cmd_handler, __cmd##_id) = {                         \
-		.id = _id,                                                                         \
 		.handler = _function,                                                              \
+		.id = _id,                                                                         \
 		.version_mask = _version_mask,                                                     \
 		.min_rqt_size = 0,                                                                 \
 		.min_rsp_size = 0,                                                                 \
@@ -347,6 +347,17 @@ bool ec_host_cmd_send_in_progress_ended(void);
  */
 enum ec_host_cmd_status ec_host_cmd_send_in_progress_status(void);
 #endif /* CONFIG_EC_HOST_CMD_IN_PROGRESS_STATUS */
+
+/**
+ * @brief Add a suppressed command.
+ *
+ * Suppressed commands are not logged. Add a command to be suppressed.
+ *
+ * @param[in] cmd_id        A command id to be suppressed.
+ *
+ * @retval 0 if successful, -EIO if exceeded max number of suppressed commands.
+ */
+int ec_host_cmd_add_suppressed(uint16_t cmd_id);
 
 /**
  * @}

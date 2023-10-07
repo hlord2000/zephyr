@@ -373,6 +373,7 @@ int lwm2m_notify_observer_path(const struct lwm2m_obj_path *path)
 				LOG_DBG("NOTIFY EVENT %u/%u/%u", path->obj_id, path->obj_inst_id,
 					path->res_id);
 				ret++;
+				lwm2m_engine_wake_up();
 			}
 		}
 	}
@@ -437,7 +438,7 @@ static void engine_observe_node_init(struct observe_node *obs, const uint8_t *to
 		obs->event_timestamp = 0;
 	}
 	obs->resource_update = false;
-	obs->active_tx_operation = false;
+	obs->active_notify = NULL;
 	obs->format = format;
 	obs->counter = OBSERVE_COUNTER_START;
 	sys_slist_append(&ctx->observer, &obs->node);
@@ -595,6 +596,12 @@ static int engine_add_observer(struct lwm2m_message *msg, const uint8_t *token, 
 		memcpy(obs->token, token, tkl);
 		obs->tkl = tkl;
 
+		/* Cancel ongoing notification */
+		if (obs->active_notify != NULL) {
+			lwm2m_reset_message(obs->active_notify, true);
+			obs->active_notify = NULL;
+		}
+
 		LOG_DBG("OBSERVER DUPLICATE %u/%u/%u(%u) [%s]", msg->path.obj_id,
 			msg->path.obj_inst_id, msg->path.res_id, msg->path.level,
 			lwm2m_sprint_ip_addr(&msg->ctx->remote_addr));
@@ -677,6 +684,12 @@ static int engine_add_composite_observer(struct lwm2m_message *msg, const uint8_
 	if (obs) {
 		memcpy(obs->token, token, tkl);
 		obs->tkl = tkl;
+
+		/* Cancel ongoing notification */
+		if (obs->active_notify != NULL) {
+			lwm2m_reset_message(obs->active_notify, true);
+			obs->active_notify = NULL;
+		}
 
 		LOG_DBG("OBSERVER Composite DUPLICATE [%s]",
 			lwm2m_sprint_ip_addr(&msg->ctx->remote_addr));
