@@ -30,16 +30,29 @@
 
 #include <zephyr/kernel.h>
 #include <zephyr/drivers/usb/udc.h>
+#include <hardware/regs/usb.h>
+#include <hardware/structs/usb.h>
+#include <hardware/resets.h>
+#include <pico/platform.h>
+
+/* Needed for pico-sdk */
+#ifndef typeof
+#define typeof __typeof__
+#endif
 
 #include <zephyr/logging/log.h>
-LOG_MODULE_REGISTER(udc_skeleton, CONFIG_UDC_DRIVER_LOG_LEVEL);
+LOG_MODULE_REGISTER(udc_rpi_pico, CONFIG_UDC_DRIVER_LOG_LEVEL);
+
+#define DT_DRV_COMPAT raspberrypi_pico_usbd
+
+#define VBUS_DET_ENABLED DT_INST_NODE_HAS_PROP(0, vbus_det_gpios)
 
 /*
  * Structure for holding controller configuration items that can remain in
  * non-volatile memory. This is usually accessed as
  *   const struct udc_skeleton_config *config = dev->config;
  */
-struct udc_skeleton_config {
+struct udc_rpi_pico_config {
 	size_t num_of_eps;
 	struct udc_ep_config *ep_cfg_in;
 	struct udc_ep_config *ep_cfg_out;
@@ -50,9 +63,9 @@ struct udc_skeleton_config {
 /*
  * Structure to hold driver private data.
  * Note that this is not accessible via dev->data, but as
- *   struct udc_skeleton_data *priv = udc_get_private(dev);
+ *   struct udc_rpi_pico_data *priv = udc_get_private(dev);
  */
-struct udc_skeleton_data {
+struct udc_rpi_pico_data {
 	struct k_thread thread_data;
 };
 
@@ -221,6 +234,40 @@ static int udc_skeleton_disable(const struct device *dev)
  */
 static int udc_skeleton_init(const struct device *dev)
 {
+	/* Reset usb controller */
+	reset_block(RESETS_RESET_USBCTRL_BITS);
+	unreset_block_wait(RESETS_RESET_USBCTRL_BITS);
+
+	/* Clear any previous state in dpram/hw just in case */
+	memset(usb_hw, 0, sizeof(*usb_hw));
+	memset(usb_dpram, 0, sizeof(*usb_dpram));
+
+	/* Mux the controller to the onboard usb phy */
+	usb_hw->muxing = USB_USB_MUXING_TO_PHY_BITS | USB_USB_MUXING_SOFTCON_BITS;
+
+	/* Enable the USB controller in device mode. */
+	usb_hw->main_ctrl = USB_MAIN_CTRL_CONTROLLER_EN_BITS;
+
+	/* Enable an interrupt per EP0 transaction */
+	usb_hw->sie_ctrl = USB_SIE_CTRL_EP0_INT_1BUF_BITS;
+
+	if (VBUS_DET_ENABLED) {
+		// Set the INTE register to enable the VBUS_DETECT interrupt
+		usb_hw->inte |= USB_INTS_VBUS_DETECT_BITS;
+	}
+	else {
+		// If VBUS_DET_ENABLED is false, then override VBUS detection
+		usb_hw->pwr = USB_USB_PWR_VBUS_DETECT_BITS | USB_USB_PWR_VBUS_DETECT_OVERRIDE_EN_BITS;
+	}
+
+	usb_hw->inte = USB_INTS_BUFF_STATUS_BITS | USB_INTS_BUS_RESET_BITS |
+		       USB_INTS_DEV_CONN_DIS_BITS |
+		       USB_INTS_SETUP_REQ_BITS | /*USB_INTS_EP_STALL_NAK_BITS |*/
+		       USB_INTS_ERROR_BIT_STUFF_BITS | USB_INTS_ERROR_CRC_BITS |
+		       USB_INTS_ERROR_DATA_SEQ_BITS | USB_INTS_ERROR_RX_OVERFLOW_BITS |
+		       USB_INTS_ERROR_RX_TIMEOUT_BITS | USB_INTS_DEV_SUSPEND_BITS |
+		       USB_INTR_DEV_RESUME_FROM_HOST_BITS;
+
 	if (udc_ep_enable_internal(dev, USB_CONTROL_EP_OUT,
 				   USB_EP_TYPE_CONTROL, 64, 0)) {
 		LOG_ERR("Failed to enable control endpoint");
@@ -356,8 +403,6 @@ static const struct udc_api udc_skeleton_api = {
 	.ep_dequeue = udc_skeleton_ep_dequeue,
 };
 
-#define DT_DRV_COMPAT zephyr_udc_skeleton
-
 /*
  * A UDC driver should always be implemented as a multi-instance
  * driver, even if your platform does not require it.
@@ -372,7 +417,7 @@ static const struct udc_api udc_skeleton_api = {
 										\
 	static void udc_skeleton_make_thread_##n(const struct device *dev)	\
 	{									\
-		struct udc_skeleton_data *priv = udc_get_private(dev);		\
+		struct udc_rpi_pico_data *priv = udc_get_private(dev);		\
 										\
 		k_thread_create(&priv->thread_data,				\
 				udc_skeleton_stack_##n,				\
@@ -398,7 +443,7 @@ static const struct udc_api udc_skeleton_api = {
 		.speed_idx = DT_ENUM_IDX(DT_DRV_INST(n), maximum_speed),	\
 	};									\
 										\
-	static struct udc_skeleton_data udc_priv_##n = {			\
+	static struct udc_rpi_pico_data udc_priv_##n = {			\
 	};									\
 										\
 	static struct udc_data udc_data_##n = {					\

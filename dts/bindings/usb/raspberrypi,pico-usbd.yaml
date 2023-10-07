@@ -13,3 +13,7 @@ properties:
 
   interrupts:
     required: true
+
+  vbus-det-gpios:
+    type: phandle-array
+    description: Detect VBUS via GPIO pin.
