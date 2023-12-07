@@ -1,0 +1,14 @@
+# Copyright (c) 2023 Kelly Helmut Lord
+# SPDX-License-Identifier: Apache-2.0
+
+menuconfig AT42QT2120
+	bool "AT42QT2120 Capacitance-to-Digital Converter"
+	default y
+	depends on DT_HAS_MICROCHIP_AT42QT2120_ENABLED
+	select I2C
+	help
+	  Enable driver for AT42QT2120 capacative touch controller.
+
+if AT42QT2120
+
+endif # AT42QT2120

@@ -1,0 +1,67 @@
+# Copyright (c) 2023 Kelly Helmut Lord
+# SPDX-License-Identifier: Apache-2.0
+
+description: Microchip AT42QT2120 12 channel touch sensor
+
+compatible: "microchip,at42qt2120"
+
+include: [sensor-device.yaml, i2c-device.yaml]
+
+properties:
+  change-gpios:
+    type: phandle-array
+    description: |
+      Active low state change interrupt pin. Requires an
+      external pull-up resistor.
+
+  acquisition-time:
+    type: int
+    default: 1
+    description: |
+      Maximum 0xFF value in units of 16ms. Determines time
+      between key acquisitions.
+
+  toward-touch-drift:
+    type: int
+    default: 20
+    description: |
+      Maximum 0x8F value in units of 160ms. Determines
+      drift compensation rate of object moving toward
+      sensor.
+
+  away-touch-drift:
+    type: int
+    default: 5
+    description: |
+      Maximum 0x8F value in units of 160ms. Determines
+      drift compensation rate of object moving away from
+      sensor.
+
+  detection-integrator:
+    type: int
+    default: 4
+    description: |
+      Number of consecutive measurements required
+      to confirm a key press.
+
+  touch-recal-delay:
+    type: int
+    default: 255
+    description: |
+      Maximum 0xFF value in units of 160ms. Determines
+      the length of time to recalibrate the touch pad
+      in case an object remains in contact.
+
+  drift-hold-time:
+    type: int
+    default: 25
+    description:
+      Maximum 0xFF value in units of 160ms. Determines time
+      drift is halted after key detection.
+
+  charge-time:
+    type: int
+    default: 0
+    description: |
+      Prolongs the charge-transfer period of
+      acquisition by 1 us per count.
