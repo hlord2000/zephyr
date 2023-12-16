@@ -581,14 +581,24 @@ void lwm2m_socket_del(struct lwm2m_ctx *ctx)
 	lwm2m_engine_wake_up();
 }
 
-static void check_notifications(struct lwm2m_ctx *ctx, const int64_t timestamp)
+/* Generate notify messages. Return timestamp of next Notify event */
+static int64_t check_notifications(struct lwm2m_ctx *ctx, const int64_t timestamp)
 {
 	struct observe_node *obs;
 	int rc;
+	int64_t next = INT64_MAX;
 
 	lwm2m_registry_lock();
 	SYS_SLIST_FOR_EACH_CONTAINER(&ctx->observer, obs, node) {
-		if (!obs->event_timestamp || timestamp < obs->event_timestamp) {
+		if (!obs->event_timestamp) {
+			continue;
+		}
+
+		if (obs->event_timestamp < next) {
+			next = obs->event_timestamp;
+		}
+
+		if (timestamp < obs->event_timestamp) {
 			continue;
 		}
 		/* Check That There is not pending process*/
@@ -604,6 +614,7 @@ static void check_notifications(struct lwm2m_ctx *ctx, const int64_t timestamp)
 		obs->event_timestamp =
 			engine_observe_shedule_next_event(obs, ctx->srv_obj_inst, timestamp);
 		obs->last_timestamp = timestamp;
+
 		if (!rc) {
 			/* create at most one notification */
 			goto cleanup;
@@ -611,6 +622,7 @@ static void check_notifications(struct lwm2m_ctx *ctx, const int64_t timestamp)
 	}
 cleanup:
 	lwm2m_registry_unlock();
+	return next;
 }
 
 static int socket_recv_message(struct lwm2m_ctx *client_ctx)
@@ -704,7 +716,7 @@ static void socket_loop(void *p1, void *p2, void *p3)
 
 	int i, rc;
 	int64_t now, next;
-	int64_t timeout, next_retransmit;
+	int64_t timeout, next_tx;
 	bool rd_client_paused;
 
 	while (1) {
@@ -741,12 +753,15 @@ static void socket_loop(void *p1, void *p2, void *p3)
 			if (!sys_slist_is_empty(&sock_ctx[i]->pending_sends)) {
 				continue;
 			}
-			next_retransmit = retransmit_request(sock_ctx[i], now);
-			if (next_retransmit < next) {
-				next = next_retransmit;
+			next_tx = retransmit_request(sock_ctx[i], now);
+			if (next_tx < next) {
+				next = next_tx;
 			}
 			if (lwm2m_rd_client_is_registred(sock_ctx[i])) {
-				check_notifications(sock_ctx[i], now);
+				next_tx = check_notifications(sock_ctx[i], now);
+				if (next_tx < next) {
+					next = next_tx;
+				}
 			}
 		}
 
@@ -987,6 +1002,18 @@ int lwm2m_set_default_sockopt(struct lwm2m_ctx *ctx)
 				return ret;
 			}
 		}
+		if (IS_ENABLED(CONFIG_LWM2M_DTLS_CID)) {
+			/* Enable CID */
+			int cid = TLS_DTLS_CID_ENABLED;
+
+			ret = zsock_setsockopt(ctx->sock_fd, SOL_TLS, TLS_DTLS_CID, &cid,
+					       sizeof(cid));
+			if (ret) {
+				ret = -errno;
+				LOG_ERR("Failed to enable TLS_DTLS_CID: %d", ret);
+				/* Not fatal, continue. */
+			}
+		}
 
 		if (ctx->hostname_verify && (ctx->desthostname != NULL)) {
 			/** store character at len position */
@@ -1061,13 +1088,15 @@ int lwm2m_socket_start(struct lwm2m_ctx *client_ctx)
 	int ret;
 
 #if defined(CONFIG_LWM2M_DTLS_SUPPORT)
-	if (client_ctx->load_credentials) {
-		ret = client_ctx->load_credentials(client_ctx);
-	} else {
-		ret = lwm2m_load_tls_credentials(client_ctx);
-	}
-	if (ret < 0) {
-		return ret;
+	if (client_ctx->use_dtls) {
+		if (client_ctx->load_credentials) {
+			ret = client_ctx->load_credentials(client_ctx);
+		} else {
+			ret = lwm2m_load_tls_credentials(client_ctx);
+		}
+		if (ret < 0) {
+			return ret;
+		}
 	}
 #endif /* CONFIG_LWM2M_DTLS_SUPPORT */
 

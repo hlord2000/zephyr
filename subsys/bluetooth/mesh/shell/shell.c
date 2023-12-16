@@ -68,7 +68,7 @@ static void get_faults(uint8_t *faults, uint8_t faults_size, uint8_t *dst, uint8
 	}
 }
 
-static int fault_get_cur(struct bt_mesh_model *model, uint8_t *test_id,
+static int fault_get_cur(const struct bt_mesh_model *model, uint8_t *test_id,
 			 uint16_t *company_id, uint8_t *faults, uint8_t *fault_count)
 {
 	shell_print_ctx("Sending current faults");
@@ -81,7 +81,7 @@ static int fault_get_cur(struct bt_mesh_model *model, uint8_t *test_id,
 	return 0;
 }
 
-static int fault_get_reg(struct bt_mesh_model *model, uint16_t cid,
+static int fault_get_reg(const struct bt_mesh_model *model, uint16_t cid,
 			 uint8_t *test_id, uint8_t *faults, uint8_t *fault_count)
 {
 	if (cid != CONFIG_BT_COMPANY_ID) {
@@ -99,7 +99,7 @@ static int fault_get_reg(struct bt_mesh_model *model, uint16_t cid,
 	return 0;
 }
 
-static int fault_clear(struct bt_mesh_model *model, uint16_t cid)
+static int fault_clear(const struct bt_mesh_model *model, uint16_t cid)
 {
 	if (cid != CONFIG_BT_COMPANY_ID) {
 		return -EINVAL;
@@ -110,7 +110,7 @@ static int fault_clear(struct bt_mesh_model *model, uint16_t cid)
 	return 0;
 }
 
-static int fault_test(struct bt_mesh_model *model, uint8_t test_id,
+static int fault_test(const struct bt_mesh_model *model, uint8_t test_id,
 		      uint16_t cid)
 {
 	if (cid != CONFIG_BT_COMPANY_ID) {
@@ -124,12 +124,12 @@ static int fault_test(struct bt_mesh_model *model, uint8_t test_id,
 	return 0;
 }
 
-static void attention_on(struct bt_mesh_model *model)
+static void attention_on(const struct bt_mesh_model *model)
 {
 	shell_print_ctx("Attention On");
 }
 
-static void attention_off(struct bt_mesh_model *model)
+static void attention_off(const struct bt_mesh_model *model)
 {
 	shell_print_ctx("Attention Off");
 }
@@ -771,7 +771,7 @@ static int cmd_provision_gatt(const struct shell *sh, size_t argc,
 }
 #endif /* CONFIG_BT_MESH_PB_GATT_CLIENT */
 
-#if defined(CONFIG_BT_MESH_PROV_DEVICE)
+#if defined(CONFIG_BT_MESH_PROVISIONEE)
 static int cmd_pb(bt_mesh_prov_bearer_t bearer, const struct shell *sh,
 		  size_t argc, char *argv[])
 {
@@ -822,7 +822,7 @@ static int cmd_pb_gatt(const struct shell *sh, size_t argc, char *argv[])
 	return cmd_pb(BT_MESH_PROV_GATT, sh, argc, argv);
 }
 #endif /* CONFIG_BT_MESH_PB_GATT */
-#endif /* CONFIG_BT_MESH_PROV_DEVICE */
+#endif /* CONFIG_BT_MESH_PROVISIONEE */
 
 #if defined(CONFIG_BT_MESH_PROVISIONER)
 static int cmd_remote_pub_key_set(const struct shell *sh, size_t argc, char *argv[])
@@ -1070,7 +1070,7 @@ static int cmd_rpl_clear(const struct shell *sh, size_t argc, char *argv[])
 }
 
 #if defined(CONFIG_BT_MESH_SHELL_HEALTH_SRV_INSTANCE)
-static struct bt_mesh_elem *primary_element(void)
+static const struct bt_mesh_elem *primary_element(void)
 {
 	const struct bt_mesh_comp *comp = bt_mesh_comp_get();
 
@@ -1085,7 +1085,7 @@ static int cmd_add_fault(const struct shell *sh, size_t argc, char *argv[])
 {
 	uint8_t fault_id;
 	uint8_t i;
-	struct bt_mesh_elem *elem;
+	const struct bt_mesh_elem *elem;
 	int err = 0;
 
 	elem = primary_element();
@@ -1138,7 +1138,7 @@ static int cmd_del_fault(const struct shell *sh, size_t argc, char *argv[])
 {
 	uint8_t fault_id;
 	uint8_t i;
-	struct bt_mesh_elem *elem;
+	const struct bt_mesh_elem *elem;
 	int err = 0;
 
 	elem = primary_element();
@@ -1681,14 +1681,14 @@ SHELL_STATIC_SUBCMD_SET_CREATE(
 	SHELL_CMD_ARG(comp-change, NULL, NULL, cmd_comp_change, 1, 0),
 
 /* Provisioning operations */
-#if defined(CONFIG_BT_MESH_PROV_DEVICE)
+#if defined(CONFIG_BT_MESH_PROVISIONEE)
 #if defined(CONFIG_BT_MESH_PB_GATT)
 	SHELL_CMD_ARG(pb-gatt, NULL, "<Val(off, on)>", cmd_pb_gatt, 2, 0),
 #endif
 #if defined(CONFIG_BT_MESH_PB_ADV)
 	SHELL_CMD_ARG(pb-adv, NULL, "<Val(off, on)>", cmd_pb_adv, 2, 0),
 #endif
-#endif /* CONFIG_BT_MESH_PROV_DEVICE */
+#endif /* CONFIG_BT_MESH_PROVISIONEE */
 
 #if defined(CONFIG_BT_MESH_PROVISIONER)
 	SHELL_CMD(auth-method, &auth_cmds, "Authentication methods", bt_mesh_shell_mdl_cmds_help),
@@ -1814,5 +1814,5 @@ SHELL_STATIC_SUBCMD_SET_CREATE(mesh_cmds,
 	SHELL_SUBCMD_SET_END
 );
 
-SHELL_CMD_ARG_REGISTER(mesh, &mesh_cmds, "Bluetooth mesh shell commands",
+SHELL_CMD_ARG_REGISTER(mesh, &mesh_cmds, "Bluetooth Mesh shell commands",
 			bt_mesh_shell_mdl_cmds_help, 1, 1);

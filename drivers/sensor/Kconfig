@@ -32,7 +32,6 @@ config SENSOR_SHELL
 	depends on SHELL
 	select CBPRINTF_FP_SUPPORT
 	select SENSOR_ASYNC_API
-	default y if !SHELL_MINIMAL
 	help
 	  This shell provides access to basic sensor data.
 
@@ -119,6 +118,7 @@ source "drivers/sensor/grow_r502a/Kconfig"
 source "drivers/sensor/hm330x/Kconfig"
 source "drivers/sensor/hmc5883l/Kconfig"
 source "drivers/sensor/hp206c/Kconfig"
+source "drivers/sensor/hs300x/Kconfig"
 source "drivers/sensor/hts221/Kconfig"
 source "drivers/sensor/i3g4250d/Kconfig"
 source "drivers/sensor/icm42605/Kconfig"
@@ -140,12 +140,13 @@ source "drivers/sensor/ite_tach_it8xxx2/Kconfig"
 source "drivers/sensor/ite_vcmp_it8xxx2/Kconfig"
 source "drivers/sensor/lis2dh/Kconfig"
 source "drivers/sensor/lis2ds12/Kconfig"
+source "drivers/sensor/lis2du12/Kconfig"
 source "drivers/sensor/lis2dw12/Kconfig"
 source "drivers/sensor/lis2mdl/Kconfig"
 source "drivers/sensor/lis3mdl/Kconfig"
 source "drivers/sensor/lm75/Kconfig"
 source "drivers/sensor/lm77/Kconfig"
-source "drivers/sensor/lps22df/Kconfig"
+source "drivers/sensor/lps2xdf/Kconfig"
 source "drivers/sensor/lps22hb/Kconfig"
 source "drivers/sensor/lps22hh/Kconfig"
 source "drivers/sensor/lps25hb/Kconfig"
@@ -189,6 +190,7 @@ source "drivers/sensor/opt3001/Kconfig"
 source "drivers/sensor/pcnt_esp32/Kconfig"
 source "drivers/sensor/pms7003/Kconfig"
 source "drivers/sensor/qdec_mcux/Kconfig"
+source "drivers/sensor/qdec_nxp_s32/Kconfig"
 source "drivers/sensor/qdec_nrfx/Kconfig"
 source "drivers/sensor/qdec_sam/Kconfig"
 source "drivers/sensor/qdec_stm32/Kconfig"

@@ -155,6 +155,7 @@ ARM arch:
     - bbolen
     - povergoing
     - ithinuel
+    - sgrrzhf
   files:
     - arch/arm/
     - arch/arm/core/offsets/
@@ -221,6 +222,8 @@ Ambiq Platforms:
   collaborators:
     - tgorochowik
     - msobkowski
+    - aaronyegx
+    - RichardSWheatley
   files:
     - soc/arm/ambiq/
     - boards/arm/apollo*/
@@ -472,7 +475,7 @@ CMSIS API layer:
     - include/zephyr/portability/cmsis*
     - samples/subsys/portability/cmsis_rtos_v*/
     - tests/subsys/portability/cmsis_rtos_v*/
-    - doc/services/portability/
+    - doc/services/portability/cmsis*
   labels:
     - "area: CMSIS API Layer"
     - "area: Portability"
@@ -1100,6 +1103,8 @@ Release Notes:
     - doc/hardware/peripherals/gnss.rst
     - drivers/gnss/
     - include/zephyr/drivers/gnss.h
+    - include/zephyr/drivers/gnss/
+    - tests/drivers/build_all/gnss/
     - tests/drivers/gnss/
   labels:
     - "area: GNSS"
@@ -1215,7 +1220,6 @@ Release Notes:
     - include/zephyr/drivers/kscan.h
     - samples/drivers/espi/
     - samples/drivers/kscan/
-    - samples/drivers/kscan_touch/
     - tests/drivers/kscan/
     - tests/drivers/espi/
     - dts/bindings/kscan/
@@ -1602,7 +1606,7 @@ Release Notes:
 EC Host Commands:
   status: maintained
   maintainers:
-    - semihalf-niedzwiecki-dawid
+    - niedzwiecki-dawid
   files:
     - subsys/mgmt/ec_host_cmd/
     - include/zephyr/mgmt/ec_host_cmd/
@@ -2004,7 +2008,7 @@ Native POSIX/Sim and POSIX arch:
     - scripts/native_simulator/
     - scripts/valgrind.supp
     - soc/posix/
-    - tests/boards/native_posix/
+    - tests/boards/native_sim/
   labels:
     - "area: native port"
   description: >-
@@ -2032,10 +2036,12 @@ Networking:
     - include/zephyr/net/gptp.h
     - include/zephyr/net/ieee802154*.h
     - include/zephyr/net/wifi*.h
+    - include/zephyr/net/buf.h
     - samples/net/gptp/
     - samples/net/sockets/coap_*/
     - samples/net/lwm2m_client/
     - samples/net/wifi/
+    - subsys/net/buf*.c
     - subsys/net/l2/ethernet/gptp/
     - subsys/net/l2/ieee802154/
     - subsys/net/l2/wifi/
@@ -2070,10 +2076,10 @@ Networking:
     - jukkar
   files:
     - include/zephyr/net/buf.h
-    - subsys/net/buf.c
+    - subsys/net/buf*.c
     - tests/net/buf/
   labels:
-    - "area: Networking"
+    - "area: Networking Buffers"
 
 "Networking: Connection Manager":
   status: maintained
@@ -2183,6 +2189,7 @@ Networking:
     - canisLupus1313
     - mariuszpos
     - edmont
+    - maciejbaczmanski
   files:
     - subsys/net/l2/openthread/
     - samples/net/openthread/
@@ -2246,6 +2253,7 @@ POSIX API layer:
     - tests/posix/
     - samples/posix/
     - tests/lib/fdtable/
+    - doc/services/portability/posix/
   labels:
     - "area: POSIX"
 
@@ -2279,6 +2287,7 @@ RISCV arch:
     - katsuster
     - edersondisouza
     - carlocaione
+    - npitre
   files:
     - arch/riscv/
     - boards/riscv/
@@ -2288,6 +2297,7 @@ RISCV arch:
     - soc/riscv/
     - tests/arch/riscv/
     - doc/hardware/arch/risc-v.rst
+    - drivers/interrupt_controller/intc_plic.c
   labels:
     - "area: RISCV"
 
@@ -2499,8 +2509,8 @@ Nuvoton NPCX Platforms:
     - MulinChao
     - ChiHuaL
   collaborators:
-    - MulinChao
-    - ChiHuaL
+    - TomChang19
+    - alvsun
     - sjg20
     - keith-zephyr
     - jackrosenthal
@@ -2632,7 +2642,7 @@ Intel Platforms (Agilex):
     - gdengi
   collaborators:
     - nbalabak
-    - chongteikheng
+    - teikheng
   files:
     - boards/arm64/intel_*/
     - soc/arm64/intel_*/
@@ -2797,7 +2807,7 @@ STM32 Platforms:
     - drivers/*/*stm32*.c
     - drivers/*/*stm32*.h
     - drivers/*/*/*stm32*
-    - drivers/*/*stm32
+    - drivers/*/*stm32*
     - dts/arm/st/
     - dts/bindings/*/*stm32*
     - soc/arm/st_stm32/
@@ -2858,7 +2868,6 @@ TI SimpleLink Platforms:
     - vaishnavachath
   collaborators:
     - vanti
-    - cfriedt
   files:
     - boards/arm/cc13*/
     - boards/arm/cc26*/
@@ -3132,6 +3141,9 @@ Userspace:
     - scripts/build/gen_relocate_app.py
     - include/zephyr/sys/kobject.h
     - include/zephyr/sys/mem_manage.h
+    - include/zephyr/kernel/mm.h
+    - include/zephyr/kernel/internal/mm.h
+    - include/zephyr/kernel/mm/demand_paging.h
   labels:
     - "area: Userspace"
 
@@ -3264,6 +3276,8 @@ West:
   collaborators:
     - tgorochowik
     - msobkowski
+    - aaronyegx
+    - RichardSWheatley
   files:
     - modules/hal_ambiq/
   labels:
@@ -3477,8 +3491,6 @@ West:
   status: maintained
   maintainers:
     - vaishnavachath
-  collaborators:
-    - cfriedt
   files: []
   labels:
     - "platform: TI"
@@ -3659,6 +3671,7 @@ West:
     - canisLupus1313
     - mariuszpos
     - edmont
+    - maciejbaczmanski
   files:
     - modules/openthread/
   labels:
@@ -3962,6 +3975,7 @@ zbus:
     - teburd
   collaborators:
     - lyakh
+    - pillo79
   files:
     - samples/subsys/llext/
     - include/zephyr/llext/

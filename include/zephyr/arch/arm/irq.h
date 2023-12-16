@@ -13,8 +13,8 @@
  * arm/arch.h.
  */
 
-#ifndef ZEPHYR_INCLUDE_ARCH_ARM_AARCH32_IRQ_H_
-#define ZEPHYR_INCLUDE_ARCH_ARM_AARCH32_IRQ_H_
+#ifndef ZEPHYR_INCLUDE_ARCH_ARM_IRQ_H_
+#define ZEPHYR_INCLUDE_ARCH_ARM_IRQ_H_
 
 #include <zephyr/sw_isr_table.h>
 #include <stdbool.h>
@@ -74,14 +74,6 @@ void z_soc_irq_eoi(unsigned int irq);
 extern void z_arm_int_exit(void);
 
 extern void z_arm_interrupt_init(void);
-
-/* macros convert value of its argument to a string */
-#define DO_TOSTR(s) #s
-#define TOSTR(s) DO_TOSTR(s)
-
-/* concatenate the values of the arguments into one */
-#define DO_CONCAT(x, y) x ## y
-#define CONCAT(x, y) DO_CONCAT(x, y)
 
 /* Flags for use with IRQ_CONNECT() */
 /**
@@ -262,4 +254,4 @@ typedef enum {
 }
 #endif
 
-#endif /* ZEPHYR_INCLUDE_ARCH_ARM_AARCH32_IRQ_H_ */
+#endif /* ZEPHYR_INCLUDE_ARCH_ARM_IRQ_H_ */

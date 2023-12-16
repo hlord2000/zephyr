@@ -1751,7 +1751,6 @@ if(CONFIG_BUILD_OUTPUT_EXE)
       post_build_byproducts
       ${KERNEL_EXE_NAME}
       )
-    set(BYPRODUCT_KERNEL_EXE_NAME "${PROJECT_BINARY_DIR}/${KERNEL_EXE_NAME}" CACHE FILEPATH "Kernel exe file" FORCE)
   else()
     if(CMAKE_GENERATOR STREQUAL "Unix Makefiles")
       set(MAKE "${CMAKE_MAKE_PROGRAM}" CACHE FILEPATH "cmake defined make")
@@ -1762,12 +1761,13 @@ if(CONFIG_BUILD_OUTPUT_EXE)
       COMMENT "Building native simulator runner, and linking final executable"
       COMMAND
       ${MAKE} -f ${ZEPHYR_BASE}/scripts/native_simulator/Makefile all --warn-undefined-variables
-        -r NSI_CONFIG_FILE=${CMAKE_BINARY_DIR}/zephyr/NSI/nsi_config
+        -r NSI_CONFIG_FILE=${APPLICATION_BINARY_DIR}/zephyr/NSI/nsi_config
       # nsi_config is created by the board cmake file
       DEPENDS ${logical_target_for_zephyr_elf}
       BYPRODUCTS ${KERNEL_EXE_NAME}
     )
   endif()
+  set(BYPRODUCT_KERNEL_EXE_NAME "${PROJECT_BINARY_DIR}/${KERNEL_EXE_NAME}" CACHE FILEPATH "Kernel exe file" FORCE)
 endif()
 
 if(CONFIG_BUILD_OUTPUT_INFO_HEADER)
@@ -1784,21 +1784,32 @@ if(CONFIG_BUILD_OUTPUT_INFO_HEADER)
     )
 endif()
 
-if(CONFIG_CHECK_INIT_PRIORITIES)
-  list(APPEND
-    post_build_commands
-    COMMAND ${PYTHON_EXECUTABLE} ${ZEPHYR_BASE}/scripts/build/check_init_priorities.py
-      --elf-file=${ZEPHYR_BINARY_DIR}/${KERNEL_ELF_NAME}
-    )
-endif()
-
 if(NOT CMAKE_C_COMPILER_ID STREQUAL "ARMClang")
+  set(check_init_priorities_input
+      $<IF:$<TARGET_EXISTS:native_runner_executable>,${BYPRODUCT_KERNEL_EXE_NAME},${BYPRODUCT_KERNEL_ELF_NAME}>
+  )
+  set(check_init_priorities_command
+      ${PYTHON_EXECUTABLE} ${ZEPHYR_BASE}/scripts/build/check_init_priorities.py
+      --elf-file=${check_init_priorities_input}
+  )
+  set(check_init_priorities_dependencies
+      ${logical_target_for_zephyr_elf}
+      $<$<TARGET_EXISTS:native_runner_executable>:native_runner_executable>
+  )
+
+  if(CONFIG_CHECK_INIT_PRIORITIES)
+    add_custom_target(
+      check_init_priorities
+      ALL
+      COMMAND ${check_init_priorities_command}
+      DEPENDS ${check_init_priorities_dependencies}
+    )
+  endif()
+
   add_custom_target(
     initlevels
-    COMMAND ${PYTHON_EXECUTABLE} ${ZEPHYR_BASE}/scripts/build/check_init_priorities.py
-      --elf-file=${ZEPHYR_BINARY_DIR}/${KERNEL_ELF_NAME}
-      --initlevels
-    DEPENDS ${logical_target_for_zephyr_elf}
+    COMMAND ${check_init_priorities_command} --initlevels
+    DEPENDS ${check_init_priorities_dependencies}
     USES_TERMINAL
   )
 endif()
@@ -1874,12 +1885,11 @@ endif()
 add_custom_command(
   TARGET ${logical_target_for_zephyr_elf}
   POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E echo "Generating files from ${PROJECT_BINARY_DIR}/${KERNEL_ELF_NAME} for board: ${BOARD}"
   ${post_build_commands}
   BYPRODUCTS
   ${post_build_byproducts}
-  COMMENT "Generating files from ${KERNEL_ELF_NAME} for board: ${BOARD}"
   COMMAND_EXPAND_LISTS
-  # NB: COMMENT only works for some CMake-Generators
   )
 
 # To populate with hex files to merge, do the following:

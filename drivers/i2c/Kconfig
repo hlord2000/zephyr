@@ -15,7 +15,6 @@ if I2C
 
 config I2C_SHELL
 	bool "I2C Shell"
-	default y
 	depends on SHELL
 	help
 	  Enable I2C Shell.
@@ -93,6 +92,7 @@ source "drivers/i2c/Kconfig.xilinx_axi"
 source "drivers/i2c/Kconfig.mchp_mss"
 source "drivers/i2c/Kconfig.sedi"
 source "drivers/i2c/Kconfig.ambiq"
+source "drivers/i2c/Kconfig.numaker"
 
 config I2C_INIT_PRIORITY
 	int "Init priority"

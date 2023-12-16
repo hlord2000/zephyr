@@ -288,6 +288,20 @@ config ERRNO_IN_TLS
 	  Use thread local storage to store errno instead of storing it in
 	  the kernel thread struct. This avoids a syscall if userspace is enabled.
 
+config CURRENT_THREAD_USE_NO_TLS
+	bool
+	help
+	  Hidden symbol to not use thread local storage to store current
+	  thread.
+
+config CURRENT_THREAD_USE_TLS
+	bool "Store current thread in thread local storage (TLS)"
+	depends on THREAD_LOCAL_STORAGE && !CURRENT_THREAD_USE_NO_TLS
+	default y
+	help
+	  Use thread local storage to store the current thread. This avoids a
+	  syscall if userspace is enabled.
+
 choice SCHED_ALGORITHM
 	prompt "Scheduler priority queue algorithm"
 	default SCHED_DUMB
@@ -1259,6 +1273,13 @@ config DEVICE_DEPS_DYNAMIC
 	help
 	  Option that makes it possible to manipulate device dependencies at
 	  runtime.
+
+config DEVICE_MUTABLE
+	bool "Mutable devices [EXPERIMENTAL]"
+	select EXPERIMENTAL
+	help
+	  Support mutable devices. Mutable devices are instantiated in SRAM
+	  instead of Flash and are runtime modifiable in kernel mode.
 
 endmenu
 

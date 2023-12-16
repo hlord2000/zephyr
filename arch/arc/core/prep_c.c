@@ -23,7 +23,6 @@
 #include <zephyr/kernel_structs.h>
 #include <kernel_internal.h>
 
-
 /* XXX - keep for future use in full-featured cache APIs */
 #if 0
 /**
@@ -67,6 +66,21 @@ static void invalidate_dcache(void)
 }
 #endif
 
+#ifdef __CCAC__
+extern char __device_states_start[];
+extern char __device_states_end[];
+/**
+ * @brief Clear device_states section
+ *
+ * This routine clears the device_states section,
+ * as MW compiler marks the section with NOLOAD flag.
+ */
+static void dev_state_zero(void)
+{
+	z_early_memset(__device_states_start, 0, __device_states_end - __device_states_start);
+}
+#endif
+
 extern FUNC_NORETURN void z_cstart(void);
 /**
  * @brief Prepare to and run C code
@@ -74,9 +88,12 @@ extern FUNC_NORETURN void z_cstart(void);
  * This routine prepares for the execution of and runs C code.
  */
 
-void _PrepC(void)
+void z_prep_c(void)
 {
 	z_bss_zero();
+#ifdef __CCAC__
+	dev_state_zero();
+#endif
 	z_data_copy();
 	z_cstart();
 	CODE_UNREACHABLE;

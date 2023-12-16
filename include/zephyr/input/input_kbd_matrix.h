@@ -29,6 +29,18 @@
 /** Number of tracked scan cycles */
 #define INPUT_KBD_MATRIX_SCAN_OCURRENCES 30U
 
+/** Row entry data type */
+#if CONFIG_INPUT_KBD_MATRIX_16_BIT_ROW
+typedef uint16_t kbd_row_t;
+#define PRIkbdrow "%04x"
+#else
+typedef uint8_t kbd_row_t;
+#define PRIkbdrow "%02x"
+#endif
+
+/** Maximum number of rows */
+#define INPUT_KBD_MATRIX_ROW_BITS NUM_BITS(kbd_row_t)
+
 /**
  * @brief Keyboard matrix internal APIs.
  */
@@ -49,7 +61,7 @@ struct input_kbd_matrix_api {
 	 *
 	 * @param dev Pointer to the keyboard matrix device.
 	 */
-	int (*read_row)(const struct device *dev);
+	kbd_row_t (*read_row)(const struct device *dev);
 	/**
 	 * @brief Request to put the matrix in detection mode.
 	 *
@@ -74,16 +86,17 @@ struct input_kbd_matrix_common_config {
 	uint8_t col_size;
 	uint32_t poll_period_us;
 	uint32_t poll_timeout_ms;
-	uint32_t debounce_down_ms;
-	uint32_t debounce_up_ms;
+	uint32_t debounce_down_us;
+	uint32_t debounce_up_us;
 	uint32_t settle_time_us;
 	bool ghostkey_check;
+	const kbd_row_t *actual_key_mask;
 
 	/* extra data pointers */
-	uint8_t *matrix_stable_state;
-	uint8_t *matrix_unstable_state;
-	uint8_t *matrix_previous_state;
-	uint8_t *matrix_new_state;
+	kbd_row_t *matrix_stable_state;
+	kbd_row_t *matrix_unstable_state;
+	kbd_row_t *matrix_previous_state;
+	kbd_row_t *matrix_new_state;
 	uint8_t *scan_cycle_idx;
 };
 
@@ -96,12 +109,18 @@ struct input_kbd_matrix_common_config {
  * specify row and col count.
  */
 #define INPUT_KBD_MATRIX_DT_DEFINE_ROW_COL(node_id, _row_size, _col_size) \
-	BUILD_ASSERT(IN_RANGE(_row_size, 1, 8), "invalid row-size"); \
+	BUILD_ASSERT(IN_RANGE(_row_size, 1, INPUT_KBD_MATRIX_ROW_BITS), "invalid row-size"); \
 	BUILD_ASSERT(IN_RANGE(_col_size, 1, UINT8_MAX), "invalid col-size"); \
-	static uint8_t INPUT_KBD_MATRIX_DATA_NAME(node_id, stable_state)[_col_size]; \
-	static uint8_t INPUT_KBD_MATRIX_DATA_NAME(node_id, unstable_state)[_col_size]; \
-	static uint8_t INPUT_KBD_MATRIX_DATA_NAME(node_id, previous_state)[_col_size]; \
-	static uint8_t INPUT_KBD_MATRIX_DATA_NAME(node_id, new_state)[_col_size]; \
+	IF_ENABLED(DT_NODE_HAS_PROP(node_id, actual_key_mask), ( \
+	BUILD_ASSERT(DT_PROP_LEN(node_id, actual_key_mask) == _col_size, \
+		     "actual-key-mask size does not match the number of columns"); \
+	static const kbd_row_t INPUT_KBD_MATRIX_DATA_NAME(node_id, actual_key_mask)[_col_size] = \
+		DT_PROP(node_id, actual_key_mask); \
+	)) \
+	static kbd_row_t INPUT_KBD_MATRIX_DATA_NAME(node_id, stable_state)[_col_size]; \
+	static kbd_row_t INPUT_KBD_MATRIX_DATA_NAME(node_id, unstable_state)[_col_size]; \
+	static kbd_row_t INPUT_KBD_MATRIX_DATA_NAME(node_id, previous_state)[_col_size]; \
+	static kbd_row_t INPUT_KBD_MATRIX_DATA_NAME(node_id, new_state)[_col_size]; \
 	static uint8_t INPUT_KBD_MATRIX_DATA_NAME(node_id, scan_cycle_idx)[_row_size * _col_size];
 
 /**
@@ -145,10 +164,13 @@ struct input_kbd_matrix_common_config {
 		.col_size = _col_size, \
 		.poll_period_us = DT_PROP(node_id, poll_period_ms) * USEC_PER_MSEC, \
 		.poll_timeout_ms = DT_PROP(node_id, poll_timeout_ms), \
-		.debounce_down_ms = DT_PROP(node_id, debounce_down_ms), \
-		.debounce_up_ms = DT_PROP(node_id, debounce_up_ms), \
+		.debounce_down_us = DT_PROP(node_id, debounce_down_ms) * USEC_PER_MSEC, \
+		.debounce_up_us = DT_PROP(node_id, debounce_up_ms) * USEC_PER_MSEC, \
 		.settle_time_us = DT_PROP(node_id, settle_time_us), \
 		.ghostkey_check = !DT_PROP(node_id, no_ghostkey_check), \
+		IF_ENABLED(DT_NODE_HAS_PROP(node_id, actual_key_mask), ( \
+		.actual_key_mask = INPUT_KBD_MATRIX_DATA_NAME(node_id, actual_key_mask), \
+		)) \
 		\
 		.matrix_stable_state = INPUT_KBD_MATRIX_DATA_NAME(node_id, stable_state), \
 		.matrix_unstable_state = INPUT_KBD_MATRIX_DATA_NAME(node_id, unstable_state), \
@@ -195,7 +217,7 @@ struct input_kbd_matrix_common_config {
  */
 struct input_kbd_matrix_common_data {
 	/* Track previous cycles, used for debouncing. */
-	uint8_t scan_clk_cycle[INPUT_KBD_MATRIX_SCAN_OCURRENCES];
+	uint32_t scan_clk_cycle[INPUT_KBD_MATRIX_SCAN_OCURRENCES];
 	uint8_t scan_cycles_idx;
 
 	struct k_sem poll_lock;
@@ -227,6 +249,21 @@ struct input_kbd_matrix_common_data {
  * @param dev Keyboard matrix device instance.
  */
 void input_kbd_matrix_poll_start(const struct device *dev);
+
+#ifdef CONFIG_INPUT_KBD_DRIVE_COLUMN_HOOK
+/**
+ * @brief Drive column hook
+ *
+ * This can be implemented by the application to handle column selection
+ * quirks. Called after the driver specific drive_column function.
+ *
+ * @param dev Keyboard matrix device instance.
+ * @param col The column to drive, or
+ *      @ref INPUT_KBD_MATRIX_COLUMN_DRIVE_NONE or
+ *      @ref INPUT_KBD_MATRIX_COLUMN_DRIVE_ALL.
+ */
+void input_kbd_matrix_drive_column_hook(const struct device *dev, int col);
+#endif
 
 /**
  * @brief Common function to initialize a keyboard matrix device at init time.

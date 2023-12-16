@@ -57,6 +57,9 @@ struct nrf5_802154_config {
 };
 
 static struct nrf5_802154_data nrf5_data;
+#if defined(CONFIG_IEEE802154_RAW_MODE)
+static const struct device *nrf5_dev;
+#endif
 
 #define DRX_SLOT_RX 0 /* Delayed reception window ID */
 
@@ -94,6 +97,15 @@ static struct nrf5_802154_data nrf5_data;
 #else
 #define IEEE802154_NRF5_VENDOR_OUI (uint32_t)0xF4CE36
 #endif
+
+static inline const struct device *nrf5_get_device(void)
+{
+#if defined(CONFIG_IEEE802154_RAW_MODE)
+	return nrf5_dev;
+#else
+	return net_if_get_device(nrf5_data.iface);
+#endif
+}
 
 static void nrf5_get_eui64(uint8_t *mac)
 {
@@ -726,6 +738,9 @@ static int nrf5_init(const struct device *dev)
 {
 	const struct nrf5_802154_config *nrf5_radio_cfg = NRF5_802154_CFG(dev);
 	struct nrf5_802154_data *nrf5_radio = NRF5_802154_DATA(dev);
+#if defined(CONFIG_IEEE802154_RAW_MODE)
+	nrf5_dev = dev;
+#endif
 
 	k_fifo_init(&nrf5_radio->rx_fifo);
 	k_sem_init(&nrf5_radio->tx_wait, 0, 1);
@@ -766,25 +781,17 @@ static void nrf5_iface_init(struct net_if *iface)
 #if defined(CONFIG_NRF_802154_ENCRYPTION)
 static void nrf5_config_mac_keys(struct ieee802154_key *mac_keys)
 {
-	static nrf_802154_key_id_t stored_key_ids[NRF_802154_SECURITY_KEY_STORAGE_SIZE];
-	static uint8_t stored_ids[NRF_802154_SECURITY_KEY_STORAGE_SIZE];
-	uint8_t i;
+	nrf_802154_security_key_remove_all();
 
-	for (i = 0; i < NRF_802154_SECURITY_KEY_STORAGE_SIZE && stored_key_ids[i].p_key_id; i++) {
-		nrf_802154_security_key_remove(&stored_key_ids[i]);
-		stored_key_ids[i].p_key_id = NULL;
-	}
-
-	i = 0;
-	for (struct ieee802154_key *keys = mac_keys; keys->key_value
-			&& i < NRF_802154_SECURITY_KEY_STORAGE_SIZE; keys++, i++) {
+	for (uint8_t i = 0; mac_keys->key_value
+			&& i < NRF_802154_SECURITY_KEY_STORAGE_SIZE; mac_keys++, i++) {
 		nrf_802154_key_t key = {
-			.value.p_cleartext_key = keys->key_value,
-			.id.mode = keys->key_id_mode,
-			.id.p_key_id = &(keys->key_index),
+			.value.p_cleartext_key = mac_keys->key_value,
+			.id.mode = mac_keys->key_id_mode,
+			.id.p_key_id = mac_keys->key_id,
 			.type = NRF_802154_KEY_CLEARTEXT,
 			.frame_counter = 0,
-			.use_global_frame_counter = !(keys->frame_counter_per_key),
+			.use_global_frame_counter = !(mac_keys->frame_counter_per_key),
 		};
 
 		__ASSERT_EVAL((void)nrf_802154_security_key_store(&key),
@@ -792,10 +799,6 @@ static void nrf5_config_mac_keys(struct ieee802154_key *mac_keys)
 			err == NRF_802154_SECURITY_ERROR_NONE ||
 			err == NRF_802154_SECURITY_ERROR_ALREADY_PRESENT,
 			"Storing key failed, err: %d", err);
-
-		stored_ids[i] = *key.id.p_key_id;
-		stored_key_ids[i].mode = key.id.mode;
-		stored_key_ids[i].p_key_id = &stored_ids[i];
 	};
 }
 #endif /* CONFIG_NRF_802154_ENCRYPTION */
@@ -930,9 +933,9 @@ static int nrf5_configure(const struct device *dev,
 
 #if defined(CONFIG_NRF_802154_SER_HOST)
 		net_time_t period_ns = nrf5_data.csl_period * NSEC_PER_TEN_SYMBOLS;
-		bool changed = (config->csl_rx_time - nrf5_data.csl_rx_time) % period_ns;
+		bool changed = (config->expected_rx_time - nrf5_data.csl_rx_time) % period_ns;
 
-		nrf5_data.csl_rx_time = config->csl_rx_time;
+		nrf5_data.csl_rx_time = config->expected_rx_time;
 
 		if (changed)
 #endif /* CONFIG_NRF_802154_SER_HOST */
@@ -1046,7 +1049,7 @@ void nrf_802154_received_timestamp_raw(uint8_t *data, int8_t power, uint8_t lqi,
 
 void nrf_802154_receive_failed(nrf_802154_rx_error_t error, uint32_t id)
 {
-	const struct device *dev = net_if_get_device(nrf5_data.iface);
+	const struct device *dev = nrf5_get_device();
 
 #if defined(CONFIG_IEEE802154_CSL_ENDPOINT)
 	if (id == DRX_SLOT_RX) {
@@ -1165,7 +1168,7 @@ void nrf_802154_energy_detected(const nrf_802154_energy_detected_t *result)
 		energy_scan_done_cb_t callback = nrf5_data.energy_scan_done;
 
 		nrf5_data.energy_scan_done = NULL;
-		callback(net_if_get_device(nrf5_data.iface), result->ed_dbm);
+		callback(nrf5_get_device(), result->ed_dbm);
 	}
 }
 
@@ -1175,7 +1178,7 @@ void nrf_802154_energy_detection_failed(nrf_802154_ed_error_t error)
 		energy_scan_done_cb_t callback = nrf5_data.energy_scan_done;
 
 		nrf5_data.energy_scan_done = NULL;
-		callback(net_if_get_device(nrf5_data.iface), SHRT_MAX);
+		callback(nrf5_get_device(), SHRT_MAX);
 	}
 }
 

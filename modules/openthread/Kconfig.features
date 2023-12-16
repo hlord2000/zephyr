@@ -39,6 +39,10 @@ config OPENTHREAD_BACKBONE_ROUTER_DUA_NDPROXYING
 config OPENTHREAD_BACKBONE_ROUTER_MULTICAST_ROUTING
 	bool "BBR MR support"
 
+config OPENTHREAD_BLE_TCAT
+	bool "BLE TCAT support"
+	select EXPERIMENTAL
+
 config OPENTHREAD_BORDER_AGENT
 	bool "Border Agent support"
 
@@ -214,6 +218,9 @@ config OPENTHREAD_MLR
 	help
 	  Enable Multicast Listener Registration support for Thread 1.2
 
+config OPENTHREAD_MULTIPAN_RCP
+	bool "OpenThread multipan rcp"
+
 config OPENTHREAD_MULTIPLE_INSTANCE
 	bool "OpenThread multiple instances"
 
@@ -241,6 +248,12 @@ config OPENTHREAD_OTNS
 
 config OPENTHREAD_PING_SENDER
 	bool "Ping sender support"
+
+config OPENTHREAD_PLATFORM_KEY_REF
+	bool "Platform cryptographic key reference support"
+	help
+	  Enable usage of cryptographic key references instead of literal keys.
+	  This requires a crypto backend library that supports key references.
 
 config OPENTHREAD_PLATFORM_NETIF
 	bool "Platform netif support"

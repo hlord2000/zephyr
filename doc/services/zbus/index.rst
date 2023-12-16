@@ -424,8 +424,11 @@ exchanges accelerometer data, for example.
     K_THREAD_DEFINE(subscriber_task_id, 512, subscriber_task, NULL, NULL, NULL, 3, 0, 0);
 
     ZBUS_MSG_SUBSCRIBER_DEFINE(my_msg_subscriber);
-    static void msg_subscriber_task(void *sub)
+    static void msg_subscriber_task(void *ptr1, void *ptr2, void *ptr3)
     {
+            ARG_UNUSED(ptr1);
+            ARG_UNUSED(ptr2);
+            ARG_UNUSED(ptr3);
             const struct zbus_channel *chan;
 
             struct acc_msg acc = {0};
@@ -763,9 +766,9 @@ following example illustrates the runtime registration usage.
     void thread_entry(void) {
             // ...
             /* Adding the observer to channel chan1 */
-            zbus_chan_add_obs(&chan1, &my_listener);
+            zbus_chan_add_obs(&chan1, &my_listener, K_NO_WAIT);
             /* Removing the observer from channel chan1 */
-            zbus_chan_rm_obs(&chan1, &my_listener);
+            zbus_chan_rm_obs(&chan1, &my_listener, K_NO_WAIT);
 
 
 Samples
@@ -820,9 +823,9 @@ Related configuration options:
 * :kconfig:option:`CONFIG_ZBUS_OBSERVER_NAME` enables the name of observers to be available inside
   the channels metadata;
 * :kconfig:option:`CONFIG_ZBUS_MSG_SUBSCRIBER` enables the message subscriber observer type;
-* :kconfig:option:`CONFIG_ZBUS_MSG_SUBSCRIBER_NET_BUF_DYNAMIC` uses the heap to allocate message
+* :kconfig:option:`CONFIG_ZBUS_MSG_SUBSCRIBER_BUF_ALLOC_DYNAMIC` uses the heap to allocate message
   buffers;
-* :kconfig:option:`CONFIG_ZBUS_MSG_SUBSCRIBER_NET_BUF_STATIC` uses the stack to allocate message
+* :kconfig:option:`CONFIG_ZBUS_MSG_SUBSCRIBER_BUF_ALLOC_STATIC` uses the stack to allocate message
   buffers;
 * :kconfig:option:`CONFIG_ZBUS_MSG_SUBSCRIBER_NET_BUF_POOL_SIZE` the available number of message
   buffers to be used simultaneously;

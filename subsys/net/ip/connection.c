@@ -154,7 +154,8 @@ static void conn_set_unused(struct net_conn *conn)
 }
 
 /* Check if we already have identical connection handler installed. */
-static struct net_conn *conn_find_handler(uint16_t proto, uint8_t family,
+static struct net_conn *conn_find_handler(struct net_if *iface,
+					  uint16_t proto, uint8_t family,
 					  const struct sockaddr *remote_addr,
 					  const struct sockaddr *local_addr,
 					  uint16_t remote_port,
@@ -252,6 +253,13 @@ static struct net_conn *conn_find_handler(uint16_t proto, uint8_t family,
 			continue;
 		}
 
+		if (conn->context != NULL && iface != NULL &&
+		    net_context_is_bound_to_iface(conn->context)) {
+			if (iface != net_context_get_iface(conn->context)) {
+				continue;
+			}
+		}
+
 		k_mutex_unlock(&conn_lock);
 		return conn;
 	}
@@ -273,7 +281,8 @@ int net_conn_register(uint16_t proto, uint8_t family,
 	struct net_conn *conn;
 	uint8_t flags = 0U;
 
-	conn = conn_find_handler(proto, family, remote_addr, local_addr,
+	conn = conn_find_handler(context != NULL ? net_context_get_iface(context) : NULL,
+				 proto, family, remote_addr, local_addr,
 				 remote_port, local_port,
 				 context != NULL ?
 					net_context_is_reuseport_set(context) :
@@ -631,6 +640,8 @@ enum net_verdict net_conn_input(struct net_pkt *pkt,
 	bool raw_pkt_delivered = false;
 	bool raw_pkt_continue = false;
 	struct net_conn *conn;
+	net_conn_cb_t cb = NULL;
+	void *user_data = NULL;
 
 	if (IS_ENABLED(CONFIG_NET_IP)) {
 		/* If we receive a packet with multicast destination address, we might
@@ -647,6 +658,8 @@ enum net_verdict net_conn_input(struct net_pkt *pkt,
 			is_mcast_pkt = net_ipv6_is_addr_mcast((struct in6_addr *)ip_hdr->ipv6->dst);
 		}
 	}
+
+	k_mutex_lock(&conn_lock, K_FOREVER);
 
 	SYS_SLIST_FOR_EACH_CONTAINER(&conn_used, conn, node) {
 		/* Is the candidate connection matching the packet's interface? */
@@ -722,6 +735,7 @@ enum net_verdict net_conn_input(struct net_pkt *pkt,
 				enum net_verdict ret = conn_raw_socket(pkt, conn, proto);
 
 				if (ret == NET_DROP) {
+					k_mutex_unlock(&conn_lock);
 					goto drop;
 				} else if (ret == NET_OK) {
 					raw_pkt_delivered = true;
@@ -796,6 +810,7 @@ enum net_verdict net_conn_input(struct net_pkt *pkt,
 
 				mcast_pkt = net_pkt_clone(pkt, CLONE_TIMEOUT);
 				if (!mcast_pkt) {
+					k_mutex_unlock(&conn_lock);
 					goto drop;
 				}
 
@@ -813,6 +828,13 @@ enum net_verdict net_conn_input(struct net_pkt *pkt,
 			best_match = conn;
 		}
 	} /* loop end */
+
+	if (best_match) {
+		cb = best_match->cb;
+		user_data = best_match->user_data;
+	}
+
+	k_mutex_unlock(&conn_lock);
 
 	if (IS_ENABLED(CONFIG_NET_SOCKETS_PACKET) && pkt_family == AF_PACKET) {
 		if (raw_pkt_continue) {
@@ -841,11 +863,11 @@ enum net_verdict net_conn_input(struct net_pkt *pkt,
 		return NET_OK;
 	}
 
-	if (best_match) {
-		NET_DBG("[%p] match found cb %p ud %p rank 0x%02x", best_match, best_match->cb,
-			best_match->user_data, NET_CONN_RANK(best_match->flags));
+	if (cb) {
+		NET_DBG("[%p] match found cb %p ud %p rank 0x%02x", best_match, cb,
+			user_data, NET_CONN_RANK(best_match->flags));
 
-		if (best_match->cb(best_match, pkt, ip_hdr, proto_hdr, best_match->user_data)
+		if (cb(best_match, pkt, ip_hdr, proto_hdr, user_data)
 				== NET_DROP) {
 			goto drop;
 		}

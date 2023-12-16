@@ -146,6 +146,17 @@ struct bt_conn_tx {
 	uint32_t pending_no_cb;
 };
 
+struct acl_data {
+	/* Extend the bt_buf user data */
+	struct bt_buf_data buf_data;
+
+	/* Index into the bt_conn storage array */
+	uint8_t  index;
+
+	/** ACL connection handle */
+	uint16_t handle;
+};
+
 struct bt_conn {
 	uint16_t			handle;
 	enum bt_conn_type	type;
@@ -352,6 +363,9 @@ void notify_le_data_len_updated(struct bt_conn *conn);
 void notify_le_phy_updated(struct bt_conn *conn);
 
 bool le_param_req(struct bt_conn *conn, struct bt_le_conn_param *param);
+
+void notify_tx_power_report(struct bt_conn *conn,
+			    struct bt_conn_le_tx_power_report report);
 
 #if defined(CONFIG_BT_SMP)
 /* If role specific LTK is present */

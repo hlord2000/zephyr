@@ -8,7 +8,7 @@
 #include <soc.h>
 
 #define FLEXRAM_DT_NODE DT_INST(0, nxp_flexram)
-#define IOMUXC_GPR_DT_NODE DT_INST(0, nxp_imx_gpr)
+#define IOMUXC_GPR_DT_NODE DT_NODELABEL(iomuxcgpr)
 
 #if defined(CONFIG_MEMC_NXP_FLEXRAM_MAGIC_ADDR_API) || \
 	defined(CONFIG_MEMC_NXP_FLEXRAM_ERROR_INTERRUPT)
@@ -44,7 +44,7 @@ void memc_flexram_register_callback(flexram_callback_t callback, void *user_data
  * call from platform_init to set up flexram if using runtime map
  * must be inlined because cannot use stack
  */
-#define GPR17_REG_FILL(node_id, prop, idx) + (DT_PROP_BY_IDX(node_id, prop, idx) << idx)
+#define GPR17_REG_FILL(node_id, prop, idx) + (DT_PROP_BY_IDX(node_id, prop, idx) << (2*idx))
 static inline void memc_flexram_dt_partition(void)
 {
 	/* iomuxc_gpr must be const (in ROM region) because used in reconfiguring ram */

@@ -21,7 +21,13 @@ zephyr_syscall_header_ifdef(
 
 zephyr_syscall_header_ifdef(
   CONFIG_MMU
+  ${ZEPHYR_BASE}/include/zephyr/kernel/mm.h
   ${ZEPHYR_BASE}/include/zephyr/sys/mem_manage.h
+)
+
+zephyr_syscall_header_ifdef(
+  CONFIG_DEMAND_PAGING
+  ${ZEPHYR_BASE}/include/zephyr/kernel/mm/demand_paging.h
 )
 
 # If a pre-built static library containing kernel code exists in
@@ -53,6 +59,7 @@ list(APPEND kernel_files
   mem_slab.c
   thread.c
   version.c
+  sched.c
   )
 
 if(CONFIG_MULTITHREADING)
@@ -66,7 +73,6 @@ list(APPEND kernel_files
   stack.c
   system_work_q.c
   work.c
-  sched.c
   condvar.c
   )
 

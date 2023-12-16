@@ -12,7 +12,7 @@
 #include <zephyr/sys/slist.h>
 #include <zephyr/sys/__assert.h>
 #include <zephyr/sys/util.h>
-#include <zephyr/sys/mem_manage.h>
+#include <zephyr/kernel/mm.h>
 #include <zephyr/linker/linker-defs.h>
 
 /*
@@ -214,9 +214,6 @@ static inline void z_mem_assert_virtual_region(uint8_t *addr, size_t size)
  * concisely to printk.
  */
 void z_page_frames_dump(void);
-
-/* Number of free page frames. This information may go stale immediately */
-extern size_t z_free_page_count;
 
 /* Convenience macro for iterating over all page frames */
 #define Z_PAGE_FRAME_FOREACH(_phys, _pageframe) \

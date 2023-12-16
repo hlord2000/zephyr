@@ -41,7 +41,6 @@
 			mpu: mpu@e000ed90 {
 				compatible = "arm,armv8m-mpu";
 				reg = <0xe000ed90 0x40>;
-				arm,num-mpu-regions = <8>;
 			};
 		};
 
@@ -434,7 +433,6 @@
 			clocks = <&rcc STM32_CLOCK_BUS_APB3 0x00000800>;
 			interrupts = <67 1>;
 			interrupt-names = "wakeup";
-			st,static-prescaler;
 			status = "disabled";
 		};
 
@@ -446,7 +444,6 @@
 			clocks = <&rcc STM32_CLOCK_BUS_APB1_2 0x00000020>;
 			interrupts = <68 0>;
 			interrupt-names = "global";
-			st,static-prescaler;
 			status = "disabled";
 		};
 
@@ -458,7 +455,6 @@
 			clocks = <&rcc STM32_CLOCK_BUS_APB3 0x00001000>;
 			interrupts = <98 0>;
 			interrupt-names = "global";
-			st,static-prescaler;
 			status = "disabled";
 		};
 
@@ -470,7 +466,6 @@
 			clocks = <&rcc STM32_CLOCK_BUS_APB3 0x00002000>;
 			interrupts = <110 0>;
 			interrupt-names = "global";
-			st,static-prescaler;
 			status = "disabled";
 		};
 
@@ -886,6 +881,38 @@
 		compatible = "st,stm32-vbat";
 		ratio = <4>;
 		io-channels = <&adc4 14>;
+		status = "disabled";
+	};
+
+	smbus1: smbus1 {
+		compatible = "st,stm32-smbus";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		i2c = <&i2c1>;
+		status = "disabled";
+	};
+
+	smbus2: smbus2 {
+		compatible = "st,stm32-smbus";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		i2c = <&i2c2>;
+		status = "disabled";
+	};
+
+	smbus3: smbus3 {
+		compatible = "st,stm32-smbus";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		i2c = <&i2c3>;
+		status = "disabled";
+	};
+
+	smbus4: smbus4 {
+		compatible = "st,stm32-smbus";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		i2c = <&i2c4>;
 		status = "disabled";
 	};
 };

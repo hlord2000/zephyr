@@ -111,16 +111,8 @@ struct cmd_data {
 
 static struct cmd_data cmd_data[CONFIG_BT_BUF_CMD_TX_COUNT];
 
-#if defined(CONFIG_BT_CONN)
-struct acl_data {
-	uint16_t acl_handle;
-};
-
-static struct acl_data acl_data[CONFIG_BT_BUF_ACL_RX_COUNT];
-#endif
-
 #define cmd(buf) (&cmd_data[net_buf_id(buf)])
-#define acl(buf) (&acl_data[net_buf_id(buf)])
+#define acl(buf) ((struct acl_data *)net_buf_user_data(buf))
 
 void bt_hci_cmd_state_set_init(struct net_buf *buf,
 			       struct bt_hci_cmd_state_set *state,
@@ -138,7 +130,7 @@ void bt_hci_cmd_state_set_init(struct net_buf *buf,
  */
 #define CMD_BUF_SIZE MAX(BT_BUF_EVT_RX_SIZE, BT_BUF_CMD_TX_SIZE)
 NET_BUF_POOL_FIXED_DEFINE(hci_cmd_pool, CONFIG_BT_BUF_CMD_TX_COUNT,
-			  CMD_BUF_SIZE, 8, NULL);
+			  CMD_BUF_SIZE, sizeof(struct bt_buf_data), NULL);
 
 struct event_handler {
 	uint8_t event;
@@ -209,9 +201,10 @@ void bt_hci_host_num_completed_packets(struct net_buf *buf)
 {
 
 	struct bt_hci_cp_host_num_completed_packets *cp;
-	uint16_t handle = acl(buf)->acl_handle;
+	uint16_t handle = acl(buf)->handle;
 	struct bt_hci_handle_count *hc;
 	struct bt_conn *conn;
+	uint8_t index = acl(buf)->index;
 
 	net_buf_destroy(buf);
 
@@ -220,9 +213,9 @@ void bt_hci_host_num_completed_packets(struct net_buf *buf)
 		return;
 	}
 
-	conn = bt_conn_lookup_handle(handle, BT_CONN_TYPE_ALL);
+	conn = bt_conn_lookup_index(index);
 	if (!conn) {
-		LOG_WRN("Unable to look up conn with ACL handle %u", handle);
+		LOG_WRN("Unable to look up conn with index 0x%02x", index);
 		return;
 	}
 
@@ -519,9 +512,10 @@ static void hci_acl(struct net_buf *buf)
 	handle = sys_le16_to_cpu(hdr->handle);
 	flags = bt_acl_flags(handle);
 
-	acl(buf)->acl_handle = bt_acl_handle(handle);
+	acl(buf)->handle = bt_acl_handle(handle);
+	acl(buf)->index = BT_CONN_INDEX_INVALID;
 
-	LOG_DBG("handle %u len %u flags %u", acl(buf)->acl_handle, len, flags);
+	LOG_DBG("handle %u len %u flags %u", acl(buf)->handle, len, flags);
 
 	if (buf->len != len) {
 		LOG_ERR("ACL data length mismatch (%u != %u)", buf->len, len);
@@ -529,12 +523,14 @@ static void hci_acl(struct net_buf *buf)
 		return;
 	}
 
-	conn = bt_conn_lookup_handle(acl(buf)->acl_handle, BT_CONN_TYPE_ALL);
+	conn = bt_conn_lookup_handle(acl(buf)->handle, BT_CONN_TYPE_ALL);
 	if (!conn) {
-		LOG_ERR("Unable to find conn for handle %u", acl(buf)->acl_handle);
+		LOG_ERR("Unable to find conn for handle %u", acl(buf)->handle);
 		net_buf_unref(buf);
 		return;
 	}
+
+	acl(buf)->index = bt_conn_index(conn);
 
 	bt_conn_recv(conn, buf, flags);
 	bt_conn_unref(conn);
@@ -2403,6 +2399,33 @@ int bt_hci_register_vnd_evt_cb(bt_hci_vnd_evt_cb_t cb)
 }
 #endif /* CONFIG_BT_HCI_VS_EVT_USER */
 
+#if defined(CONFIG_BT_TRANSMIT_POWER_CONTROL)
+void bt_hci_le_transmit_power_report(struct net_buf *buf)
+{
+	struct bt_hci_evt_le_transmit_power_report *evt;
+	struct bt_conn_le_tx_power_report report;
+	struct bt_conn *conn;
+
+	evt = net_buf_pull_mem(buf, sizeof(*evt));
+	conn = bt_conn_lookup_handle(sys_le16_to_cpu(evt->handle), BT_CONN_TYPE_LE);
+	if (!conn) {
+		LOG_ERR("Unknown conn handle 0x%04X for transmit power report",
+		       sys_le16_to_cpu(evt->handle));
+		return;
+	}
+
+	report.reason = evt->reason;
+	report.phy = evt->phy;
+	report.tx_power_level = evt->tx_power_level;
+	report.tx_power_level_flag = evt->tx_power_level_flag;
+	report.delta = evt->delta;
+
+	notify_tx_power_report(conn, report);
+
+	bt_conn_unref(conn);
+}
+#endif /* CONFIG_BT_TRANSMIT_POWER_CONTROL */
+
 static const struct event_handler vs_events[] = {
 #if defined(CONFIG_BT_DF_VS_CL_IQ_REPORT_16_BITS_IQ_SAMPLES)
 	EVENT_HANDLER(BT_HCI_EVT_VS_LE_CONNECTIONLESS_IQ_REPORT,
@@ -2548,6 +2571,10 @@ static const struct event_handler meta_events[] = {
 	EVENT_HANDLER(BT_HCI_EVT_LE_CTE_REQUEST_FAILED, bt_hci_le_df_cte_req_failed,
 		      sizeof(struct bt_hci_evt_le_cte_req_failed)),
 #endif /* CONFIG_BT_DF_CONNECTION_CTE_REQ */
+#if defined(CONFIG_BT_TRANSMIT_POWER_CONTROL)
+	EVENT_HANDLER(BT_HCI_EVT_LE_TRANSMIT_POWER_REPORT, bt_hci_le_transmit_power_report,
+		      sizeof(struct bt_hci_evt_le_transmit_power_report)),
+#endif /* CONFIG_BT_TRANSMIT_POWER_CONTROL */
 #if defined(CONFIG_BT_PER_ADV_SYNC_RSP)
 	EVENT_HANDLER(BT_HCI_EVT_LE_PER_ADVERTISING_REPORT_V2, bt_hci_le_per_adv_report_v2,
 		      sizeof(struct bt_hci_evt_le_per_advertising_report_v2)),
@@ -3092,6 +3119,9 @@ static int le_set_event_mask(void)
 		    (BT_FEAT_LE_PHY_2M(bt_dev.le.features) ||
 		     BT_FEAT_LE_PHY_CODED(bt_dev.le.features))) {
 			mask |= BT_EVT_MASK_LE_PHY_UPDATE_COMPLETE;
+		}
+		if (IS_ENABLED(CONFIG_BT_TRANSMIT_POWER_CONTROL)) {
+			mask |= BT_EVT_MASK_LE_TRANSMIT_POWER_REPORTING;
 		}
 	}
 
@@ -3638,9 +3668,19 @@ static void hci_vs_init(void)
 static int hci_init(void)
 {
 	int err;
+
 #if defined(CONFIG_BT_HCI_SETUP)
+	struct bt_hci_setup_params setup_params = { 0 };
+
+	bt_addr_copy(&setup_params.public_addr, BT_ADDR_ANY);
+#if defined(CONFIG_BT_HCI_SET_PUBLIC_ADDR)
+	if (bt_dev.id_count > 0 && bt_dev.id_addr[BT_ID_DEFAULT].type == BT_ADDR_LE_PUBLIC) {
+		bt_addr_copy(&setup_params.public_addr, &bt_dev.id_addr[BT_ID_DEFAULT].a);
+	}
+#endif /* defined(CONFIG_BT_HCI_SET_PUBLIC_ADDR) */
+
 	if (bt_dev.drv->setup) {
-		err = bt_dev.drv->setup();
+		err = bt_dev.drv->setup(&setup_params);
 		if (err) {
 			return err;
 		}
@@ -4280,7 +4320,7 @@ int bt_le_set_chan_map(uint8_t chan_map[5])
 	struct bt_hci_cp_le_set_host_chan_classif *cp;
 	struct net_buf *buf;
 
-	if (!IS_ENABLED(CONFIG_BT_CENTRAL)) {
+	if (!(IS_ENABLED(CONFIG_BT_CENTRAL) || IS_ENABLED(CONFIG_BT_BROADCASTER))) {
 		return -ENOTSUP;
 	}
 

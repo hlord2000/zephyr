@@ -28,7 +28,6 @@
 #define LOG_MODULE_NAME mesh_prov
 
 #include <zephyr/logging/log.h>
-#include "mesh/adv.h"
 #include "mesh/rpr.h"
 
 LOG_MODULE_REGISTER(LOG_MODULE_NAME);
@@ -118,7 +117,7 @@ static struct bt_mesh_rpr_cli rpr_cli = {
 
 static const struct bt_mesh_comp rpr_cli_comp = {
 	.elem =
-		(struct bt_mesh_elem[]){
+		(const struct bt_mesh_elem[]){
 			BT_MESH_ELEM(1,
 				     MODEL_LIST(BT_MESH_MODEL_CFG_SRV,
 						BT_MESH_MODEL_CFG_CLI(&(struct bt_mesh_cfg_cli){}),
@@ -130,7 +129,7 @@ static const struct bt_mesh_comp rpr_cli_comp = {
 
 static const struct bt_mesh_comp rpr_srv_comp = {
 	.elem =
-		(struct bt_mesh_elem[]){
+		(const struct bt_mesh_elem[]){
 			BT_MESH_ELEM(1,
 				     MODEL_LIST(BT_MESH_MODEL_CFG_SRV,
 						BT_MESH_MODEL_RPR_SRV),
@@ -141,7 +140,7 @@ static const struct bt_mesh_comp rpr_srv_comp = {
 
 static const struct bt_mesh_comp rpr_cli_srv_comp = {
 	.elem =
-		(struct bt_mesh_elem[]){
+		(const struct bt_mesh_elem[]){
 			BT_MESH_ELEM(1,
 				     MODEL_LIST(BT_MESH_MODEL_CFG_SRV,
 						BT_MESH_MODEL_CFG_CLI(&(struct bt_mesh_cfg_cli){}),
@@ -152,14 +151,20 @@ static const struct bt_mesh_comp rpr_cli_srv_comp = {
 	.elem_count = 1,
 };
 
-static int mock_pdu_send(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
-			       struct net_buf_simple *buf)
+/* Delayed work to suspend device to allow publication to finish. */
+static struct k_work_delayable suspend_work;
+static void delayed_suspend(struct k_work *work)
 {
 	/* Device becomes unresponsive and doesn't communicate with other nodes anymore */
 	bt_mesh_suspend();
 
 	k_sem_give(&pdu_send_sem);
+}
 
+static int mock_pdu_send(const struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
+			       struct net_buf_simple *buf)
+{
+	k_work_schedule(&suspend_work, K_MSEC(100));
 	return 0;
 }
 
@@ -168,10 +173,10 @@ static const struct bt_mesh_model_op model_rpr_op1[] = {
 	BT_MESH_MODEL_OP_END
 };
 
-static int mock_model_init(struct bt_mesh_model *mod)
+static int mock_model_init(const struct bt_mesh_model *mod)
 {
 	mod->keys[0] = BT_MESH_KEY_DEV_LOCAL;
-	mod->flags |= BT_MESH_MOD_DEVKEY_ONLY;
+	mod->rt->flags |= BT_MESH_MOD_DEVKEY_ONLY;
 
 	return 0;
 }
@@ -182,7 +187,7 @@ const struct bt_mesh_model_cb mock_model_cb = {
 
 static const struct bt_mesh_comp rpr_srv_comp_unresponsive = {
 	.elem =
-		(struct bt_mesh_elem[]){
+		(const struct bt_mesh_elem[]){
 			BT_MESH_ELEM(1,
 				     MODEL_LIST(BT_MESH_MODEL_CFG_SRV,
 						BT_MESH_MODEL_CB(IMPOSTER_MODEL_ID,
@@ -221,7 +226,7 @@ static const struct bt_mesh_comp2 comp_p2_2 = {.record_cnt = 2, .record = comp_r
 
 static const struct bt_mesh_comp rpr_srv_comp_2_elem = {
 	.elem =
-		(struct bt_mesh_elem[]){
+		(const struct bt_mesh_elem[]){
 			BT_MESH_ELEM(1,
 				     MODEL_LIST(BT_MESH_MODEL_CFG_SRV,
 						BT_MESH_MODEL_RPR_SRV),
@@ -1271,6 +1276,7 @@ static void test_device_pb_remote_server_unproved(void)
  */
 static void test_device_pb_remote_server_unproved_unresponsive(void)
 {
+	k_work_init_delayable(&suspend_work, delayed_suspend);
 	device_pb_remote_server_setup_unproved(&rpr_srv_comp_unresponsive, NULL);
 
 	k_sem_init(&pdu_send_sem, 0, 1);

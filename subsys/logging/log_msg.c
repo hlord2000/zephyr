@@ -10,6 +10,7 @@
 #include <zephyr/logging/log_frontend.h>
 #include <zephyr/logging/log_backend.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/llext/symbol.h>
 LOG_MODULE_DECLARE(log);
 
 BUILD_ASSERT(sizeof(struct log_msg_desc) == sizeof(uint32_t),
@@ -270,6 +271,7 @@ void z_impl_z_log_msg_static_create(const void *source,
 
 	z_log_msg_finalize(msg, source, out_desc, data);
 }
+EXPORT_SYSCALL(z_log_msg_static_create);
 
 #ifdef CONFIG_USERSPACE
 static inline void z_vrfy_z_log_msg_static_create(const void *source,
@@ -281,7 +283,7 @@ static inline void z_vrfy_z_log_msg_static_create(const void *source,
 #include <syscalls/z_log_msg_static_create_mrsh.c>
 #endif
 
-void z_impl_z_log_msg_runtime_vcreate(uint8_t domain_id, const void *source,
+void z_log_msg_runtime_vcreate(uint8_t domain_id, const void *source,
 				uint8_t level, const void *data, size_t dlen,
 				uint32_t package_flags, const char *fmt, va_list ap)
 {
@@ -330,15 +332,3 @@ void z_impl_z_log_msg_runtime_vcreate(uint8_t domain_id, const void *source,
 		z_log_msg_finalize(msg, source, desc, data);
 	}
 }
-
-#ifdef CONFIG_USERSPACE
-static inline void z_vrfy_z_log_msg_runtime_vcreate(uint8_t domain_id,
-				const void *source,
-				uint8_t level, const void *data, size_t dlen,
-				uint32_t package_flags, const char *fmt, va_list ap)
-{
-	return z_impl_z_log_msg_runtime_vcreate(domain_id, source, level, data,
-						dlen, package_flags, fmt, ap);
-}
-#include <syscalls/z_log_msg_runtime_vcreate_mrsh.c>
-#endif

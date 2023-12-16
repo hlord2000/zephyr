@@ -125,6 +125,7 @@ config XTENSA
 	select IRQ_OFFLOAD_NESTED if IRQ_OFFLOAD
 	select ARCH_HAS_CODE_DATA_RELOCATION
 	select ARCH_HAS_TIMING_FUNCTIONS
+	select ARCH_MEM_DOMAIN_DATA if USERSPACE
 	imply ATOMIC_OPERATIONS_ARCH
 	help
 	  Xtensa architecture
@@ -139,7 +140,7 @@ config ARCH_POSIX
 	select NATIVE_BUILD
 	select HAS_COVERAGE_SUPPORT
 	select BARRIER_OPERATIONS_BUILTIN
-	# native_posix gets its memory cleared on entry by the host OS
+	# POSIX arch based targets get their memory cleared on entry by the host OS
 	select SKIP_BSS_CLEAR
 	help
 	  POSIX (native) architecture
@@ -513,6 +514,16 @@ config IRQ_OFFLOAD_NESTED
 	  synchronous nested interrupt on the current CPU.  Not all
 	  hardware is capable.
 
+config EXCEPTION_DEBUG
+	bool "Unhandled exception debugging"
+	default y
+	depends on PRINTK || LOG
+	help
+	  Install handlers for various CPU exception/trap vectors to
+	  make debugging them easier, at a small expense in code size.
+	  This prints out the specific exception vector and any associated
+	  error codes.
+
 config EXTRA_EXCEPTION_INFO
 	bool "Collect extra exception info"
 	depends on ARCH_HAS_EXTRA_EXCEPTION_INFO
@@ -654,6 +665,11 @@ config CPU_HAS_FPU
 	help
 	  This option is enabled when the CPU has hardware floating point
 	  unit.
+
+config CPU_HAS_DSP
+	bool
+	help
+	  This option is enabled when the CPU has hardware DSP unit.
 
 config CPU_HAS_FPU_DOUBLE_PRECISION
 	bool
@@ -819,6 +835,17 @@ config CODE_DATA_RELOCATION
 	  the target regions should be specified in CMakeLists.txt using
 	  zephyr_code_relocate().
 
+menu "DSP Options"
+
+config DSP_SHARING
+	bool "DSP register sharing"
+	depends on CPU_HAS_DSP
+	help
+	  This option enables preservation of the hardware DSP registers
+	  across context switches to allow multiple threads to perform concurrent
+	  DSP operations.
+endmenu
+
 menu "Floating Point Options"
 
 config FPU
@@ -978,3 +1005,10 @@ config TOOLCHAIN_HAS_BUILTIN_FFS
 	default y if !(64BIT && RISCV)
 	help
 	  Hidden option to signal that toolchain has __builtin_ffs*().
+
+config ARCH_CPU_IDLE_CUSTOM
+	bool "Custom arch_cpu_idle implementation"
+	default n
+	help
+	  This options allows applications to override the default arch idle implementation with
+	  a custom one.
