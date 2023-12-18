@@ -95,10 +95,35 @@ if (CONFIG_BUILD_WITH_TFM)
     list(APPEND TFM_CMAKE_ARGS -DMCUBOOT_IMAGE_NUMBER=${CONFIG_TFM_MCUBOOT_IMAGE_NUMBER})
   endif()
 
+  if (CONFIG_TFM_DUMMY_PROVISIONING)
+    list(APPEND TFM_CMAKE_ARGS -DTFM_DUMMY_PROVISIONING=ON)
+  else()
+    list(APPEND TFM_CMAKE_ARGS -DTFM_DUMMY_PROVISIONING=OFF)
+  endif()
+
   if (CONFIG_TFM_EXCEPTION_INFO_DUMP)
     list(APPEND TFM_CMAKE_ARGS -DTFM_EXCEPTION_INFO_DUMP=ON)
   else()
     list(APPEND TFM_CMAKE_ARGS -DTFM_EXCEPTION_INFO_DUMP=OFF)
+  endif()
+
+  if (CONFIG_TFM_BL2)
+    if (CONFIG_TFM_BL2_LOG_LEVEL_DEBUG)
+      set(TFM_BL2_LOG_LEVEL "DEBUG")
+    elseif (CONFIG_TFM_BL2_LOG_LEVEL_INFO)
+      set(TFM_BL2_LOG_LEVEL "INFO")
+    elseif (CONFIG_TFM_BL2_LOG_LEVEL_WARNING)
+      set(TFM_BL2_LOG_LEVEL "WARNING")
+    elseif (CONFIG_TFM_BL2_LOG_LEVEL_ERROR)
+      set(TFM_BL2_LOG_LEVEL "ERROR")
+    elseif (CONFIG_TFM_BL2_LOG_LEVEL_OFF OR CONFIG_TFM_LOG_LEVEL_SILENCE)
+      set(TFM_BL2_LOG_LEVEL "OFF")
+    endif()
+
+    if (DEFINED TFM_BL2_LOG_LEVEL)
+      # BL2 uses MCUBOOT_LOG_LEVEL configuration
+      list(APPEND TFM_CMAKE_ARGS -DMCUBOOT_LOG_LEVEL=${TFM_BL2_LOG_LEVEL})
+    endif()
   endif()
 
   if (CONFIG_TFM_PARTITION_LOG_LEVEL_DEBUG)
@@ -312,6 +337,7 @@ if (CONFIG_BUILD_WITH_TFM)
       -DTFM_PLATFORM=${CONFIG_TFM_BOARD}
       -DCONFIG_TFM_BUILD_LOG_QUIET=ON
       -DCONFIG_TFM_MEMORY_USAGE_QUIET=OFF
+      -DPython3_EXECUTABLE=${Python3_EXECUTABLE}
       ${TFM_CMAKE_ARGS}
       $<GENEX_EVAL:$<TARGET_PROPERTY:zephyr_property_target,TFM_CMAKE_OPTIONS>>
       -DMBEDCRYPTO_PATH=$<IF:$<BOOL:$<TARGET_PROPERTY:zephyr_property_target,TFM_MBEDCRYPTO_PATH>>,$<TARGET_PROPERTY:zephyr_property_target,TFM_MBEDCRYPTO_PATH>,${ZEPHYR_MBEDTLS_MODULE_DIR}>
@@ -416,8 +442,8 @@ if (CONFIG_BUILD_WITH_TFM)
 
   else()
     zephyr_library_link_libraries(
-      ${TFM_API_NS_PATH}
       ${PLATFORM_NS_FILE}
+      ${TFM_API_NS_PATH}
       )
   endif()
 
@@ -560,4 +586,13 @@ if (CONFIG_BUILD_WITH_TFM)
       ${MERGED_FILE}
     )
   endif()
-endif()
+
+  if(CONFIG_TFM_DUMMY_PROVISIONING)
+    message(WARNING
+      "TFM_DUMMY_PROVISIONING is enabled:
+      The device will be provisioned using dummy keys and is NOT secure!
+      This is not suitable for production"
+      )
+  endif()
+
+endif() # CONFIG_BUILD_WITH_TFM

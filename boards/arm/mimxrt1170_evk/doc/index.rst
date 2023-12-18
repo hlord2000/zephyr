@@ -349,6 +349,11 @@ Use the ``-r linkserver`` option with West to use the LinkServer runner.
 
    west flash -r linkserver
 
+Alternatively, pyOCD can be used to flash and debug the board by using the
+``-r pyocd`` option with West. pyOCD is installed when you complete the
+:ref:`gs_python_deps` step in the Getting Started Guide. The runners supported
+by NXP are LinkServer and JLink. pyOCD is another potential option, but NXP
+does not test or support the pyOCD runner.
 
 Configuring a Console
 =====================
@@ -437,3 +442,13 @@ should see the following message in the terminal:
 
 .. _NXP MCUXpresso for Visual Studio Code:
 	https://www.nxp.com/design/software/development-software/mcuxpresso-software-and-tools-/mcuxpresso-for-visual-studio-code:MCUXPRESSO-VSC
+
+Experimental ENET Driver
+========================
+
+Current default ethernet driver is eth_mcux, with binding `nxp,kinetis-ethernet`. There is a new
+driver with binding `nxp,enet`, which is experimental and undergoing development, but will have
+enhanced capability, such as not hardcoding code for only one phy in the driver like eth_mcux.
+
+To build for this EVK with the new driver, include the experimental overlay to west build with
+the option `-DEXTRA_DTC_OVERLAY_FILE=nxp,enet-experimental.overlay`.

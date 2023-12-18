@@ -161,6 +161,14 @@ This interface is supported by the openocd version included in Zephyr SDK.
 Flashing an application to STM32F429I-DISC1
 -------------------------------------------
 
+The board is configured to be flashed using west OpenOCD runner.
+Alternatively, you can use `STM32CubeProgrammer`_ (after installing it) using the ``--runner``
+(or ``-r``) option:
+
+.. code-block:: console
+
+   $ west flash --runner stm32cubeprogrammer
+
 First, connect the STM32F429I-DISC1 Discovery kit to your host computer using
 the USB port to prepare it for flashing. Then build and flash your application.
 
@@ -196,13 +204,16 @@ You can debug an application in the usual way.  Here is an example for the
    :goals: debug
 
 .. _STM32F429I-DISC1 website:
-   http://www.st.com/en/evaluation-tools/32f429idiscovery.html
+   https://www.st.com/en/evaluation-tools/32f429idiscovery.html
 
 .. _STM32F429I-DISC1 board User Manual:
-   http://www.st.com/web/en/resource/technical/document/user_manual/DM00097320.pdf
+   https://www.st.com/web/en/resource/technical/document/user_manual/DM00097320.pdf
 
 .. _STM32F429ZI on www.st.com:
-   http://www.st.com/en/microcontrollers/stm32f429-439.html
+   https://www.st.com/en/microcontrollers/stm32f429-439.html
 
 .. _STM32F429 Reference Manual:
-   http://www.st.com/content/ccc/resource/technical/document/reference_manual/3d/6d/5a/66/b4/99/40/d4/DM00031020.pdf/files/DM00031020.pdf/jcr:content/translations/en.DM00031020.pdf
+   https://www.st.com/content/ccc/resource/technical/document/reference_manual/3d/6d/5a/66/b4/99/40/d4/DM00031020.pdf/files/DM00031020.pdf/jcr:content/translations/en.DM00031020.pdf
+
+.. _STM32CubeProgrammer:
+   https://www.st.com/en/development-tools/stm32cubeprog.html

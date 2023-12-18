@@ -79,7 +79,6 @@ TaskState 0xBF 1=dummy, 2=Waiting, 4=New, 8=Terminated, 16=Suspended, 32=Termina
 72  k_pipe_cleanup             pipe=%I  | Returns %ErrCodePosix
 73  k_pipe_put                 pipe=%I, data=%p, bytes_to_write=%u, bytes_written=%u, min_xfer=%u, Timeout=%TimeOut            | Returns %ErrCodePosix
 74  k_pipe_get                 pipe=%I, data=%p, bytes_to_read=%u, bytes_read=%u, min_xfer=%u, Timeout=%TimeOut                | Returns %ErrCodePosix
-75  k_pipe_block_put           pipe=%I, block=%p, bytes_to_write=%u, sem=%I |  Returns (void)(%ErrCodePosix)
 
 76  k_heap_init                heap=%I, mem=%p, bytes=%u
 77  k_heap_alloc               heap=%I, bytes=%u, Timeout=%TimeOut | Returns %p
@@ -165,7 +164,7 @@ TaskState 0xBF 1=dummy, 2=Waiting, 4=New, 8=Terminated, 16=Suspended, 32=Termina
 156 pm_system_suspend            ticks=%u | Returns %Bool
 157 pm_device_runtime_get        dev=%I | Returns %u
 158 pm_device_runtime_put        dev=%I | Returns %u
-159 pm_device_runtime_put_async  dev=%I | Returns %u
+159 pm_device_runtime_put_async  dev=%I, Delay=%TimeOut | Returns %u
 160 pm_device_runtime_enable     dev=%I | Returns %u
 161 pm_device_runtime_disable    dev=%I | Returns %u
 

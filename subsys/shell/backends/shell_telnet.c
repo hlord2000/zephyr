@@ -33,6 +33,8 @@ struct shell_telnet *sh_telnet;
 #define TELNET_MIN_COMMAND_LEN 2
 #define TELNET_WILL_DO_COMMAND_LEN 3
 
+#define TELNET_RETRY_SEND_SLEEP_MS 50
+
 /* Basic TELNET implementation. */
 
 static void telnet_end_client_connection(void)
@@ -64,17 +66,29 @@ static void telnet_sent_cb(struct net_context *client,
 
 static void telnet_command_send_reply(uint8_t *msg, uint16_t len)
 {
-	int err;
-
 	if (sh_telnet->client_ctx == NULL) {
 		return;
 	}
 
-	err = net_context_send(sh_telnet->client_ctx, msg, len, telnet_sent_cb,
-			       K_FOREVER, NULL);
-	if (err < 0) {
-		LOG_ERR("Failed to send command %d, shutting down", err);
-		telnet_end_client_connection();
+	while (len > 0) {
+		int ret;
+
+		ret = net_context_send(sh_telnet->client_ctx, msg, len, telnet_sent_cb,
+				       K_FOREVER, NULL);
+
+		if (ret == -EAGAIN) {
+			k_sleep(K_MSEC(TELNET_RETRY_SEND_SLEEP_MS));
+			continue;
+		}
+
+		if (ret < 0) {
+			LOG_ERR("Failed to send command %d, shutting down", ret);
+			telnet_end_client_connection();
+			break;
+		}
+
+		msg += ret;
+		len -= ret;
 	}
 }
 
@@ -85,12 +99,56 @@ static void telnet_reply_ay_command(void)
 	telnet_command_send_reply((uint8_t *)alive, strlen(alive));
 }
 
+static int telnet_echo_set(const struct shell *sh, bool val)
+{
+	int ret = shell_echo_set(sh_telnet->shell_context, val);
+
+	if (ret < 0) {
+		LOG_ERR("Failed to set echo to: %d, err: %d", val, ret);
+	}
+	return ret;
+}
+
+static void telnet_reply_dont_command(struct telnet_simple_command *cmd)
+{
+	switch (cmd->opt) {
+	case NVT_OPT_ECHO:
+	{
+		int ret = telnet_echo_set(sh_telnet->shell_context, false);
+
+		if (ret >= 0) {
+			cmd->op = NVT_CMD_WONT;
+		} else {
+			cmd->op = NVT_CMD_WILL;
+		}
+		break;
+	}
+	default:
+		cmd->op = NVT_CMD_WONT;
+		break;
+	}
+
+	telnet_command_send_reply((uint8_t *)cmd,
+				  sizeof(struct telnet_simple_command));
+}
+
 static void telnet_reply_do_command(struct telnet_simple_command *cmd)
 {
 	switch (cmd->opt) {
 	case NVT_OPT_SUPR_GA:
 		cmd->op = NVT_CMD_WILL;
 		break;
+	case NVT_OPT_ECHO:
+	{
+		int ret = telnet_echo_set(sh_telnet->shell_context, true);
+
+		if (ret >= 0) {
+			cmd->op = NVT_CMD_WILL;
+		} else {
+			cmd->op = NVT_CMD_WONT;
+		}
+		break;
+	}
 	default:
 		cmd->op = NVT_CMD_WONT;
 		break;
@@ -120,6 +178,9 @@ static void telnet_reply_command(struct telnet_simple_command *cmd)
 	case NVT_CMD_DO:
 		telnet_reply_do_command(cmd);
 		break;
+	case NVT_CMD_DONT:
+		telnet_reply_dont_command(cmd);
+		break;
 	default:
 		LOG_DBG("Operation %u not handled", cmd->op);
 		break;
@@ -128,7 +189,9 @@ static void telnet_reply_command(struct telnet_simple_command *cmd)
 
 static int telnet_send(void)
 {
-	int err;
+	int ret;
+	uint8_t *msg = sh_telnet->line_out.buf;
+	uint16_t len = sh_telnet->line_out.len;
 
 	if (sh_telnet->line_out.len == 0) {
 		return 0;
@@ -138,13 +201,24 @@ static int telnet_send(void)
 		return -ENOTCONN;
 	}
 
-	err = net_context_send(sh_telnet->client_ctx, sh_telnet->line_out.buf,
-			       sh_telnet->line_out.len, telnet_sent_cb,
-			       K_FOREVER, NULL);
-	if (err < 0) {
-		LOG_ERR("Failed to send %d, shutting down", err);
-		telnet_end_client_connection();
-		return err;
+	while (len > 0) {
+		ret = net_context_send(sh_telnet->client_ctx, msg,
+				       len, telnet_sent_cb,
+				       K_FOREVER, NULL);
+
+		if (ret == -EAGAIN) {
+			k_sleep(K_MSEC(TELNET_RETRY_SEND_SLEEP_MS));
+			continue;
+		}
+
+		if (ret < 0) {
+			LOG_ERR("Failed to send %d, shutting down", ret);
+			telnet_end_client_connection();
+			return ret;
+		}
+
+		msg += ret;
+		len -= ret;
 	}
 
 	/* We reinitialize the line buffer */
@@ -250,8 +324,6 @@ static void telnet_accept(struct net_context *client,
 			  int error,
 			  void *user_data)
 {
-	int ret;
-
 	if (error) {
 		LOG_ERR("Error %d", error);
 		goto error;
@@ -275,13 +347,10 @@ static void telnet_accept(struct net_context *client,
 
 	sh_telnet->client_ctx = client;
 
-	/* Disable echo - if command handling is enabled we reply that we don't
+	/* Disable echo - if command handling is enabled we reply that we
 	 * support echo.
 	 */
-	ret = shell_echo_set(sh_telnet->shell_context, false);
-	if (ret < 0) {
-		LOG_ERR("Failed to disable echo, err: %d", ret);
-	}
+	(void)telnet_echo_set(sh_telnet->shell_context, false);
 
 	return;
 error:

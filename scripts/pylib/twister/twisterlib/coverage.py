@@ -71,6 +71,7 @@ class CoverageTool:
 
     @staticmethod
     def create_gcda_files(extracted_coverage_info):
+        gcda_created = True
         logger.debug("Generating gcda files")
         for filename, hexdump_val in extracted_coverage_info.items():
             # if kobject_hash is given for coverage gcovr fails
@@ -83,19 +84,33 @@ class CoverageTool:
                     pass
                 continue
 
-            with open(filename, 'wb') as fp:
-                fp.write(bytes.fromhex(hexdump_val))
+            try:
+                with open(filename, 'wb') as fp:
+                    fp.write(bytes.fromhex(hexdump_val))
+            except ValueError:
+                logger.exception("Unable to convert hex data for file: {}".format(filename))
+                gcda_created = False
+            except FileNotFoundError:
+                logger.exception("Unable to create gcda file: {}".format(filename))
+                gcda_created = False
+        return gcda_created
 
     def generate(self, outdir):
+        coverage_completed = True
         for filename in glob.glob("%s/**/handler.log" % outdir, recursive=True):
             gcov_data = self.__class__.retrieve_gcov_data(filename)
             capture_complete = gcov_data['complete']
             extracted_coverage_info = gcov_data['data']
             if capture_complete:
-                self.__class__.create_gcda_files(extracted_coverage_info)
-                logger.debug("Gcov data captured: {}".format(filename))
+                gcda_created = self.__class__.create_gcda_files(extracted_coverage_info)
+                if gcda_created:
+                    logger.debug("Gcov data captured: {}".format(filename))
+                else:
+                    logger.error("Gcov data invalid for: {}".format(filename))
+                    coverage_completed = False
             else:
                 logger.error("Gcov data capture incomplete: {}".format(filename))
+                coverage_completed = False
 
         with open(os.path.join(outdir, "coverage.log"), "a") as coveragelog:
             ret = self._generate(outdir, coveragelog)
@@ -111,6 +126,10 @@ class CoverageTool:
                 }
                 for r in self.output_formats.split(','):
                     logger.info(report_log[r])
+            else:
+                coverage_completed = False
+        logger.debug("All coverage data processed: {}".format(coverage_completed))
+        return coverage_completed
 
 
 class Lcov(CoverageTool):
@@ -119,6 +138,20 @@ class Lcov(CoverageTool):
         super().__init__()
         self.ignores = []
         self.output_formats = "lcov,html"
+        self.version = self.get_version()
+
+    def get_version(self):
+        try:
+            result = subprocess.run(['lcov', '--version'],
+                                    stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE,
+                                    text=True, check=True)
+            version_output = result.stdout.strip().replace('lcov: LCOV version ', '')
+            return version_output
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Unsable to determine lcov version: {e}")
+
+        return ""
 
     def add_ignore_file(self, pattern):
         self.ignores.append('*' + pattern + '*')
@@ -126,51 +159,75 @@ class Lcov(CoverageTool):
     def add_ignore_directory(self, pattern):
         self.ignores.append('*/' + pattern + '/*')
 
+    @staticmethod
+    def run_command(cmd, coveragelog):
+        cmd_str = " ".join(cmd)
+        logger.debug(f"Running {cmd_str}...")
+        return subprocess.call(cmd, stdout=coveragelog)
+
     def _generate(self, outdir, coveragelog):
         coveragefile = os.path.join(outdir, "coverage.info")
         ztestfile = os.path.join(outdir, "ztest.info")
+        if self.version.startswith("2"):
+            branch_coverage = "branch_coverage=1"
+            ignore_errors = [
+                         "--ignore-errors", "inconsistent,inconsistent",
+                         "--ignore-errors", "negative,negative",
+                         "--ignore-errors", "unused,unused",
+                         "--ignore-errors", "empty,empty",
+                         "--ignore-errors", "mismatch,mismatch"
+                         ]
+        else:
+            branch_coverage = "lcov_branch_coverage=1"
+            ignore_errors = []
+
         cmd = ["lcov", "--gcov-tool", str(self.gcov_tool),
                          "--capture", "--directory", outdir,
-                         "--rc", "lcov_branch_coverage=1",
+                         "--rc", branch_coverage,
                          "--output-file", coveragefile]
-        cmd_str = " ".join(cmd)
-        logger.debug(f"Running {cmd_str}...")
-        subprocess.call(cmd, stdout=coveragelog)
+        cmd = cmd + ignore_errors
+        self.run_command(cmd, coveragelog)
         # We want to remove tests/* and tests/ztest/test/* but save tests/ztest
-        subprocess.call(["lcov", "--gcov-tool", self.gcov_tool, "--extract",
+        cmd = ["lcov", "--gcov-tool", self.gcov_tool, "--extract",
                          coveragefile,
                          os.path.join(self.base_dir, "tests", "ztest", "*"),
                          "--output-file", ztestfile,
-                         "--rc", "lcov_branch_coverage=1"], stdout=coveragelog)
+                         "--rc", branch_coverage]
+
+        cmd = cmd + ignore_errors
+        self.run_command(cmd, coveragelog)
 
         if os.path.exists(ztestfile) and os.path.getsize(ztestfile) > 0:
-            subprocess.call(["lcov", "--gcov-tool", self.gcov_tool, "--remove",
+            cmd = ["lcov", "--gcov-tool", self.gcov_tool, "--remove",
                              ztestfile,
                              os.path.join(self.base_dir, "tests/ztest/test/*"),
                              "--output-file", ztestfile,
-                             "--rc", "lcov_branch_coverage=1"],
-                            stdout=coveragelog)
+                             "--rc", branch_coverage]
+            cmd = cmd + ignore_errors
+            self.run_command(cmd, coveragelog)
+
             files = [coveragefile, ztestfile]
         else:
             files = [coveragefile]
 
         for i in self.ignores:
-            subprocess.call(
-                ["lcov", "--gcov-tool", self.gcov_tool, "--remove",
-                 coveragefile, i, "--output-file",
-                 coveragefile, "--rc", "lcov_branch_coverage=1"],
-                stdout=coveragelog)
+            cmd = ["lcov", "--gcov-tool", self.gcov_tool, "--remove",
+                 coveragefile, i,
+                 "--output-file", coveragefile,
+                 "--rc", branch_coverage]
+            cmd = cmd + ignore_errors
+            self.run_command(cmd, coveragelog)
 
         if 'html' not in self.output_formats.split(','):
             return 0
 
         # The --ignore-errors source option is added to avoid it exiting due to
         # samples/application_development/external_lib/
-        return subprocess.call(["genhtml", "--legend", "--branch-coverage",
-                                "--ignore-errors", "source",
+        cmd = ["genhtml", "--legend", "--branch-coverage",
                                 "-output-directory",
-                                os.path.join(outdir, "coverage")] + files,
-                               stdout=coveragelog)
+                                os.path.join(outdir, "coverage")] + files
+        cmd = cmd + ignore_errors
+        return self.run_command(cmd, coveragelog)
 
 
 class Gcovr(CoverageTool):
@@ -202,11 +259,11 @@ class Gcovr(CoverageTool):
         excludes = Gcovr._interleave_list("-e", self.ignores)
 
         # We want to remove tests/* and tests/ztest/test/* but save tests/ztest
-        cmd = ["gcovr", "-r", self.base_dir, "--gcov-executable",
-               str(self.gcov_tool), "-e", "tests/*"] + excludes + ["--json",
-                                                                   "-o",
-                                                                   coveragefile,
-                                                                   outdir]
+        cmd = ["gcovr", "-r", self.base_dir,
+               "--gcov-ignore-parse-errors=negative_hits.warn_once_per_file",
+               "--gcov-executable", str(self.gcov_tool),
+               "-e", "tests/*"]
+        cmd += excludes + ["--json", "-o", coveragefile, outdir]
         cmd_str = " ".join(cmd)
         logger.debug(f"Running {cmd_str}...")
         subprocess.call(cmd, stdout=coveragelog)
@@ -280,4 +337,5 @@ def run_coverage(testplan, options):
     coverage_tool.add_ignore_file('generated')
     coverage_tool.add_ignore_directory('tests')
     coverage_tool.add_ignore_directory('samples')
-    coverage_tool.generate(options.outdir)
+    coverage_completed = coverage_tool.generate(options.outdir)
+    return coverage_completed

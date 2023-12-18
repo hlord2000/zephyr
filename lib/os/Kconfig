@@ -3,6 +3,13 @@
 
 menu "OS Support Library"
 
+config FDTABLE
+	bool "File descriptor table"
+	help
+	  This file provides generic file descriptor table implementation, suitable
+	  for any I/O object implementing POSIX I/O semantics (i.e. read/write +
+	  aux operations).
+
 config JSON_LIBRARY
 	bool "Build JSON library"
 	help
@@ -28,7 +35,7 @@ config BASE64
 
 config PRINTK_SYNC
 	bool "Serialize printk() calls"
-	default y if SMP && MP_NUM_CPUS > 1 && !(EFI_CONSOLE && LOG)
+	default y if SMP && MP_MAX_NUM_CPUS > 1 && !(EFI_CONSOLE && LOG)
 	help
 	  When true, a spinlock will be taken around the output from a
 	  single printk() call, preventing the output data from
@@ -112,14 +119,6 @@ config SPSC_PBUF_UTILIZATION
 
 endif # SPSC_PBUF
 
-config SHARED_MULTI_HEAP
-	bool "Shared multi-heap manager"
-	help
-	  Enable support for a shared multi-heap manager that uses the
-	  multi-heap allocator to manage a set of reserved memory regions with
-	  different capabilities / attributes (cacheable, non-cacheable,
-	  etc...) defined in the DT.
-
 config WINSTREAM
 	bool "Lockless shared memory window byte stream"
 	help
@@ -169,7 +168,5 @@ config UTF8
 	  handle UTF-8 encoded strings.
 
 rsource "Kconfig.cbprintf"
-
-rsource "Kconfig.heap"
 
 endmenu

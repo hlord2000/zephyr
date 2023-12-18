@@ -15,7 +15,7 @@
 #define ZEPHYR_INCLUDE_SYS_UTIL_H_
 
 #include <zephyr/sys/util_macro.h>
-#include <zephyr/toolchain/common.h>
+#include <zephyr/toolchain.h>
 
 /* needs to be outside _ASMLANGUAGE so 'true' and 'false' can turn
  * into '1' and '0' for asm or linker scripts
@@ -206,7 +206,7 @@ extern "C" {
  * @brief Validate if two entities have a compatible type
  *
  * @param a the first entity to be compared
- * @param a the second entity to be compared
+ * @param b the second entity to be compared
  * @return 1 if the two elements are compatible, 0 if they are not
  */
 #define SAME_TYPE(a, b) __builtin_types_compatible_p(__typeof__(a), __typeof__(b))
@@ -249,6 +249,15 @@ extern "C" {
 		CONTAINER_OF_VALIDATE(ptr, type, field)              \
 		((type *)(((char *)(ptr)) - offsetof(type, field))); \
 	})
+
+/**
+ * @brief Concatenate two tokens into one
+ *
+ * Concatenate two tokens,  @p x and @p y, into a combined token during the preprocessor pass.
+ * This can be used to, for ex., build an identifier out of two parts,
+ * where one of those parts may be, for ex, a number, another macro, or a macro argument.
+ */
+#define CONCAT(x, y) _DO_CONCAT(x, y)
 
 /**
  * @brief Value of @p x rounded up to the next multiple of @p align.

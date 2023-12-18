@@ -172,6 +172,7 @@
 		segment-remap;
 		com-invdir;
 		prechargep = <0x22>;
+		inversion-on;
 
 		reset-gpios = <&gpioa 8 GPIO_ACTIVE_HIGH>;
 	};
@@ -203,4 +204,10 @@
 		pinctrl-0 = <&tim3_ch1_pb4 &tim3_ch2_pc7>;
 		pinctrl-names = "default";
 	};
+};
+
+&rtc {
+	clocks = <&rcc STM32_CLOCK_BUS_APB1 0x10000000>,
+		 <&rcc STM32_SRC_LSI RTC_SEL(2)>;
+	status = "okay";
 };

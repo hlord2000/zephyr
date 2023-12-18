@@ -901,7 +901,7 @@ static int i2s_mcux_init(const struct device *dev)
 	data->tx.state = I2S_STATE_NOT_READY;
 	data->rx.state = I2S_STATE_NOT_READY;
 
-	LOG_INF("Device %s inited", dev->name);
+	LOG_DBG("Device %s inited", dev->name);
 
 	return 0;
 }
@@ -930,6 +930,7 @@ static int i2s_mcux_init(const struct device *dev)
 		.dma_cfg = {				\
 			.channel_direction = PERIPHERAL_TO_MEMORY,	\
 			.dma_callback = i2s_mcux_dma_rx_callback,	\
+			.complete_callback_en = true,			\
 			.block_count = NUM_RX_DMA_BLOCKS,		\
 		}							\
 	}

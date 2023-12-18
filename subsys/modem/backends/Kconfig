@@ -9,6 +9,7 @@ config MODEM_BACKEND_TTY
 config MODEM_BACKEND_UART
 	bool "Modem UART backend module"
 	select MODEM_PIPE
+	select RING_BUFFER
 	depends on UART_INTERRUPT_DRIVEN || UART_ASYNC_API
 
 if MODEM_BACKEND_UART
@@ -26,6 +27,10 @@ if MODEM_BACKEND_UART_ASYNC
 config MODEM_BACKEND_UART_ASYNC_TRANSMIT_TIMEOUT_MS
 	int "Modem UART async transmit timeout in milliseconds"
 	default 100
+
+config MODEM_BACKEND_UART_ASYNC_RECEIVE_IDLE_TIMEOUT_MS
+	int "Modem UART async receive idle timeout in milliseconds"
+	default 30
 
 endif
 

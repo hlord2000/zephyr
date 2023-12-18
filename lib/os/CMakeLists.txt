@@ -9,19 +9,16 @@ zephyr_sources_ifdef(CONFIG_BASE64 base64.c)
 zephyr_sources(
   cbprintf_packaged.c
   dec.c
-  fdtable.c
   hex.c
   printk.c
   rb.c
   sem.c
   thread_entry.c
   timeutil.c
-  heap.c
-  heap-validate.c
   bitarray.c
-  multi_heap.c
   )
 
+zephyr_sources_ifdef(CONFIG_FDTABLE fdtable.c)
 zephyr_sources_ifdef(CONFIG_ONOFF onoff.c)
 zephyr_sources_ifdef(CONFIG_NOTIFY notify.c)
 
@@ -50,13 +47,7 @@ zephyr_sources_ifdef(CONFIG_SCHED_DEADLINE p4wq.c)
 
 zephyr_sources_ifdef(CONFIG_REBOOT reboot.c)
 
-zephyr_sources_ifdef(CONFIG_SHARED_MULTI_HEAP shared_multi_heap.c)
-
-zephyr_sources_ifdef(CONFIG_HEAP_LISTENER heap_listener.c)
-
 zephyr_sources_ifdef(CONFIG_UTF8 utf8.c)
-
-zephyr_sources_ifdef(CONFIG_SYS_MEM_BLOCKS mem_blocks.c)
 
 zephyr_sources_ifdef(CONFIG_WINSTREAM winstream.c)
 

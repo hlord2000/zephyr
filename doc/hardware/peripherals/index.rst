@@ -16,7 +16,7 @@ Peripherals
    bbram.rst
    bc12.rst
    clock_control.rst
-   canbus/index.rst
+   can/index.rst
    charger.rst
    coredump.rst
    counter.rst
@@ -29,7 +29,7 @@ Peripherals
    edac/index.rst
    flash.rst
    fuel_gauge.rst
-   gna.rst
+   gnss.rst
    gpio.rst
    hwinfo.rst
    i2c_eeprom_target.rst
@@ -56,5 +56,6 @@ Peripherals
    uart.rst
    usbc_vbus.rst
    tcpc.rst
+   tgpio.rst
    video.rst
    watchdog.rst

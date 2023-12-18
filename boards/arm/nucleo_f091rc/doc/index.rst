@@ -161,7 +161,7 @@ This interface is supported by the openocd version included in the Zephyr SDK.
 Flashing an application to Nucleo F091RC
 ----------------------------------------
 
-Here is an example for the :ref:`blinky-sample` application.
+Here is an example for the :zephyr:code-sample:`blinky` application.
 
 .. zephyr-app-commands::
    :zephyr-app: samples/basic/blinky
@@ -188,10 +188,10 @@ References
 .. target-notes::
 
 .. _Nucleo F091RC website:
-   http://www.st.com/en/evaluation-tools/nucleo-f091rc.html
+   https://www.st.com/en/evaluation-tools/nucleo-f091rc.html
 
 .. _STM32F091 reference manual:
-   http://www.st.com/resource/en/reference_manual/dm00031936.pdf
+   https://www.st.com/resource/en/reference_manual/dm00031936.pdf
 
 .. _STM32 Nucleo-64 board User Manual:
-   http://www.st.com/resource/en/user_manual/dm00105823.pdf
+   https://www.st.com/resource/en/user_manual/dm00105823.pdf

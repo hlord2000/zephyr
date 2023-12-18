@@ -51,3 +51,15 @@ endif()
 if(CONFIG_BT_AICS)
     target_sources(app PRIVATE src/btp_aics.c)
 endif()
+
+if (CONFIG_BT_TBS_CLIENT)
+    target_sources(app PRIVATE src/btp_ccp.c)
+endif()
+
+if (CONFIG_BT_CAP_ACCEPTOR)
+    target_sources(app PRIVATE src/btp_cas.c)
+endif()
+
+if(CONFIG_BT_MCC OR CONFIG_BT_MCS)
+    target_sources(app PRIVATE src/btp_mcp.c)
+endif()

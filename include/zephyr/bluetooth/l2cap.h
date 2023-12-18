@@ -346,8 +346,10 @@ struct bt_l2cap_chan_ops {
 
 	/** @brief Channel sent callback
 	 *
-	 *  If this callback is provided it will be called whenever a SDU has
-	 *  been completely sent.
+	 *  This callback will be called once the controller marks the SDU
+	 *  as completed. When the controller does so is implementation
+	 *  dependent. It could be after the SDU is enqueued for transmission,
+	 *  or after it is sent on air.
 	 *
 	 *  @param chan The channel which has sent data.
 	 */
@@ -453,6 +455,7 @@ struct bt_l2cap_server {
 	 *  authorization.
 	 *
 	 *  @param conn The connection that is requesting authorization
+	 *  @param server Pointer to the server structure this callback relates to
 	 *  @param chan Pointer to received the allocated channel
 	 *
 	 *  @return 0 in case of success or negative value in case of error.
@@ -460,7 +463,8 @@ struct bt_l2cap_server {
 	 *  @return -EACCES if application did not authorize the connection.
 	 *  @return -EPERM if encryption key size is too short.
 	 */
-	int (*accept)(struct bt_conn *conn, struct bt_l2cap_chan **chan);
+	int (*accept)(struct bt_conn *conn, struct bt_l2cap_server *server,
+		      struct bt_l2cap_chan **chan);
 
 	sys_snode_t node;
 };

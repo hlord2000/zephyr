@@ -16,7 +16,7 @@ GTEXT(__initialize)
 GTEXT(__reset)
 
 /* imports */
-GTEXT(_PrepC)
+GTEXT(z_prep_c)
 GTEXT(riscv_cpu_wake_flag)
 GTEXT(riscv_cpu_sp)
 GTEXT(z_riscv_secondary_cpu_init)
@@ -86,23 +86,31 @@ aa_loop:
 #endif
 
 	/*
-	 * Jump into C domain. _PrepC zeroes BSS, copies rw data into RAM,
+	 * Jump into C domain. z_prep_c zeroes BSS, copies rw data into RAM,
 	 * and then enters kernel z_cstart
 	 */
-	call _PrepC
+	call z_prep_c
 
 boot_secondary_core:
 #if CONFIG_MP_MAX_NUM_CPUS > 1
 	la t0, riscv_cpu_wake_flag
+	li t1, -1
+	sr t1, 0(t0)
+	la t0, riscv_cpu_boot_flag
+	sr zero, 0(t0)
+
+wait_secondary_wake_flag:
+	la t0, riscv_cpu_wake_flag
 	lr t0, 0(t0)
-	bne a0, t0, boot_secondary_core
+	bne a0, t0, wait_secondary_wake_flag
 
 	/* Set up stack */
 	la t0, riscv_cpu_sp
 	lr sp, 0(t0)
 
-	la t0, riscv_cpu_wake_flag
-	sr zero, 0(t0)
+	la t0, riscv_cpu_boot_flag
+	li t1, 1
+	sr t1, 0(t0)
 	j z_riscv_secondary_cpu_init
 #else
 	j loop_unconfigured_cores

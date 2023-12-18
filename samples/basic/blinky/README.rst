@@ -1,4 +1,4 @@
-.. zephyr:code-sample:: blinky-sample
+.. zephyr:code-sample:: blinky
    :name: Blinky
    :relevant-api: gpio_interface
 
@@ -16,7 +16,7 @@ The source code shows how to:
 #. Configure the GPIO pin as an output
 #. Toggle the pin forever
 
-See :zephyr:code-sample:`pwm-blinky-sample` for a similar sample that uses the PWM API instead.
+See :zephyr:code-sample:`pwm-blinky` for a similar sample that uses the PWM API instead.
 
 .. _blinky-sample-requirements:
 
@@ -40,8 +40,9 @@ Build and flash Blinky as follows, changing ``reel_board`` for your board:
    :goals: build flash
    :compact:
 
-After flashing, the LED starts to blink. If a runtime error occurs, the sample
-exits without printing to the console.
+After flashing, the LED starts to blink and messages with the current LED state
+are printed on the console. If a runtime error occurs, the sample exits without
+printing to the console.
 
 Build errors
 ************

@@ -107,6 +107,7 @@
 #define AHB_FREQ_MAX		275000000UL
 #define APBx_FREQ_MAX		137500000UL
 #elif defined(CONFIG_SOC_STM32H7A3XX) || defined(CONFIG_SOC_STM32H7A3XXQ) ||\
+	  defined(CONFIG_SOC_STM32H7B0XX) || defined(CONFIG_SOC_STM32H7B0XXQ) ||\
 	  defined(CONFIG_SOC_STM32H7B3XX) || defined(CONFIG_SOC_STM32H7B3XXQ)
 #define SYSCLK_FREQ_MAX		280000000UL
 #define AHB_FREQ_MAX		280000000UL
@@ -585,6 +586,11 @@ static void set_up_fixed_clock_sources(void)
 		LL_RCC_HSE_Enable();
 		while (LL_RCC_HSE_IsReady() != 1) {
 		}
+		/* Check if we need to enable HSE clock security system or not */
+#if STM32_HSE_CSS
+		z_arm_nmi_set_handler(HAL_RCC_NMI_IRQHandler);
+		LL_RCC_HSE_EnableCSS();
+#endif /* STM32_HSE_CSS */
 	}
 
 	if (IS_ENABLED(STM32_HSI_ENABLED)) {
@@ -829,6 +835,7 @@ int stm32_clock_control_init(const struct device *dev)
 
 	/* HW semaphore Clock enable */
 #if defined(CONFIG_SOC_STM32H7A3XX) || defined(CONFIG_SOC_STM32H7A3XXQ) || \
+	defined(CONFIG_SOC_STM32H7B0XX) || defined(CONFIG_SOC_STM32H7B0XXQ) || \
 	defined(CONFIG_SOC_STM32H7B3XX) || defined(CONFIG_SOC_STM32H7B3XXQ)
 	LL_AHB2_GRP1_EnableClock(LL_AHB2_GRP1_PERIPH_HSEM);
 #else
@@ -927,6 +934,16 @@ int stm32_clock_control_init(const struct device *dev)
 	return 0;
 }
 #endif /* CONFIG_CPU_CORTEX_M7 */
+
+#if defined(STM32_HSE_CSS)
+void __weak stm32_hse_css_callback(void) {}
+
+/* Called by the HAL in response to an HSE CSS interrupt */
+void HAL_RCC_CSSCallback(void)
+{
+	stm32_hse_css_callback();
+}
+#endif
 
 /**
  * @brief RCC device, note that priority is intentionally set to 1 so

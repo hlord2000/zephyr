@@ -88,6 +88,9 @@ config USE_STDC_LIS2DS12
 config USE_STDC_LIS2DTW12
 	bool
 
+config USE_STDC_LIS2DU12
+	bool
+
 config USE_STDC_LIS2DW12
 	bool
 
@@ -115,6 +118,9 @@ config USE_STDC_LIS3DSH
 config USE_STDC_LIS3MDL
 	bool
 
+config USE_STDC_LPS22DF
+	bool
+
 config USE_STDC_LPS22HB
 	bool
 
@@ -125,6 +131,9 @@ config USE_STDC_LPS25HB
 	bool
 
 config USE_STDC_LPS27HHW
+	bool
+
+config USE_STDC_LPS28DFW
 	bool
 
 config USE_STDC_LPS33HW

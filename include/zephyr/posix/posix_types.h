@@ -7,7 +7,7 @@
 #ifndef ZEPHYR_INCLUDE_POSIX_TYPES_H_
 #define ZEPHYR_INCLUDE_POSIX_TYPES_H_
 
-#ifndef CONFIG_ARCH_POSIX
+#if !(defined(CONFIG_ARCH_POSIX) && defined(CONFIG_EXTERNAL_LIBC))
 #include <sys/types.h>
 #endif
 
@@ -100,6 +100,19 @@ typedef struct pthread_rwlock_obj {
 	int32_t status;
 	k_tid_t wr_owner;
 } pthread_rwlock_t;
+
+struct pthread_once {
+	bool flag;
+};
+
+#if defined(CONFIG_MINIMAL_LIBC) || defined(CONFIG_PICOLIBC) || defined(CONFIG_ARMCLANG_STD_LIBC) \
+	|| defined(CONFIG_ARCMWDT_LIBC)
+typedef uint32_t pthread_key_t;
+typedef struct pthread_once pthread_once_t;
+#endif
+
+/* Newlib typedefs pthread_once_t as a struct with two ints */
+BUILD_ASSERT(sizeof(pthread_once_t) >= sizeof(struct pthread_once));
 
 #ifdef __cplusplus
 }

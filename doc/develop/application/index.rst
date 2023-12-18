@@ -429,6 +429,11 @@ should know about.
   See :ref:`set-devicetree-overlays` for examples and :ref:`devicetree-intro`
   for information about devicetree and Zephyr.
 
+* :makevar:`EXTRA_DTC_OVERLAY_FILE`: Additional devicetree overlay files to use.
+  Multiple files can be separated with semicolons. This can be useful to leave
+  :makevar:`DTC_OVERLAY_FILE` at its default value, but "mix in" some additional
+  overlay files.
+
 * :makevar:`SHIELD`: see :ref:`shields`
 
 * :makevar:`ZEPHYR_MODULES`: A `CMake list`_ containing absolute paths of
@@ -521,6 +526,7 @@ Make sure to follow these steps in order.
    Structure your :file:`Kconfig` file like this:
 
    .. literalinclude:: application-kconfig.include
+      :language: kconfig
 
    .. note::
 
@@ -701,7 +707,7 @@ be useful for glue code to have access to Zephyr kernel header files.
 To make it easier to integrate third-party components, the Zephyr
 build system has defined CMake functions that give application build
 scripts access to the zephyr compiler options. The functions are
-documented and defined in :zephyr_file:`cmake/extensions.cmake`
+documented and defined in :zephyr_file:`cmake/modules/extensions.cmake`
 and follow the naming convention ``zephyr_get_<type>_<format>``.
 
 The following variables will often need to be exported to the

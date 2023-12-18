@@ -19,7 +19,7 @@ LOG_MODULE_REGISTER(net_test, NET_LOG_LEVEL);
 #include <errno.h>
 #include <zephyr/sys/printk.h>
 #include <zephyr/linker/sections.h>
-#include <zephyr/random/rand32.h>
+#include <zephyr/random/random.h>
 
 #include <zephyr/ztest.h>
 
@@ -66,6 +66,7 @@ static struct net_if *iface4;
 static bool test_failed;
 static bool test_started;
 static struct k_sem wait_data;
+static bool device_ok;
 
 #define WAIT_TIME 250
 
@@ -101,6 +102,15 @@ static void net_iface_init(struct net_if *iface)
 
 	net_if_set_link_addr(iface, mac, sizeof(struct net_eth_addr),
 			     NET_LINK_ETHERNET);
+}
+
+static int dev_init(const struct device *dev)
+{
+	if (device_ok == false) {
+		return -EAGAIN;
+	}
+
+	return 0;
 }
 
 static int sender_iface(const struct device *dev, struct net_pkt *pkt)
@@ -144,7 +154,7 @@ static struct dummy_api net_iface_api = {
 NET_DEVICE_INIT_INSTANCE(net_iface1_test,
 			 "iface1",
 			 iface1,
-			 NULL,
+			 dev_init,
 			 NULL,
 			 &net_iface1_data,
 			 NULL,
@@ -314,7 +324,9 @@ static void *iface_setup(void)
 {
 	struct net_if_mcast_addr *maddr;
 	struct net_if_addr *ifaddr;
-	int idx;
+	const struct device *dev;
+	bool status;
+	int idx, ret;
 
 	/* The semaphore is there to wait the data to be received. */
 	k_sem_init(&wait_data, 0, UINT_MAX);
@@ -341,6 +353,42 @@ static void *iface_setup(void)
 	zassert_not_null(iface1, "Interface 1");
 	zassert_not_null(iface2, "Interface 2");
 	zassert_not_null(iface3, "Interface 3");
+
+	/* Make sure that the first interface device is not ready */
+	dev = net_if_get_device(iface1);
+	zassert_not_null(dev, "Device is not set!");
+
+	status = device_is_ready(dev);
+	zassert_equal(status, false,  "Device %s (%p) is ready!",
+		      dev->name, dev);
+
+	/* Trying to take the interface up will fail */
+	ret = net_if_up(iface1);
+	zassert_equal(ret, -ENXIO, "Interface 1 is up (%d)", ret);
+
+	/* Try to set dormant state */
+	net_if_dormant_on(iface1);
+
+	/* Operational state should be "oper down" */
+	zassert_equal(iface1->if_dev->oper_state, NET_IF_OPER_DOWN,
+		      "Invalid operational state (%d)",
+		      iface1->if_dev->oper_state);
+
+	/* Mark the device ready and take the interface up */
+	dev->state->init_res = 0;
+	device_ok = true;
+
+	ret = net_if_up(iface1);
+	zassert_equal(ret, 0, "Interface 1 is not up (%d)", ret);
+
+	zassert_equal(iface1->if_dev->oper_state, NET_IF_OPER_DORMANT,
+		      "Invalid operational state (%d)",
+		      iface1->if_dev->oper_state);
+
+	net_if_dormant_off(iface1);
+	zassert_equal(iface1->if_dev->oper_state, NET_IF_OPER_UP,
+		      "Invalid operational state (%d)",
+		      iface1->if_dev->oper_state);
 
 	ifaddr = net_if_ipv6_addr_add(iface1, &my_addr1,
 				      NET_ADDR_MANUAL, 0);
@@ -776,8 +824,12 @@ ZTEST(net_iface, test_v4_addr_add_rm)
 #define MY_ADDR_V4_USER      { { { 10, 0, 0, 2 } } }
 #define UNKNOWN_ADDR_V4_USER { { { 5, 6, 7, 8 } } }
 
-static void v4_addr_add_user(void)
+static void v4_addr_add_user(void *p1, void *p2, void *p3)
 {
+	ARG_UNUSED(p1);
+	ARG_UNUSED(p2);
+	ARG_UNUSED(p3);
+
 	struct in_addr my_addr = MY_ADDR_V4_USER;
 	bool ret;
 
@@ -788,7 +840,7 @@ static void v4_addr_add_user(void)
 static void v4_addr_add_user_from_userspace(void)
 {
 	k_thread_access_grant(k_current_get(), net_if_get_by_index(1));
-	k_thread_user_mode_enter((k_thread_entry_t)v4_addr_add_user, NULL,
+	k_thread_user_mode_enter(v4_addr_add_user, NULL,
 				 NULL, NULL);
 }
 
@@ -805,8 +857,12 @@ static void v4_addr_lookup_user(void)
 	zassert_equal(ret, 0, "IPv4 address found");
 }
 
-static void v4_addr_rm_user(void)
+static void v4_addr_rm_user(void *p1, void *p2, void *p3)
 {
+	ARG_UNUSED(p1);
+	ARG_UNUSED(p2);
+	ARG_UNUSED(p3);
+
 	struct in_addr my_addr = MY_ADDR_V4_USER;
 	bool ret;
 
@@ -817,7 +873,7 @@ static void v4_addr_rm_user(void)
 static void v4_addr_rm_user_from_userspace(void)
 {
 	k_thread_access_grant(k_current_get(), net_if_get_by_index(1));
-	k_thread_user_mode_enter((k_thread_entry_t)v4_addr_rm_user, NULL,
+	k_thread_user_mode_enter(v4_addr_rm_user, NULL,
 				 NULL, NULL);
 }
 
@@ -940,8 +996,12 @@ ZTEST(net_iface, test_v6_addr_add_rm_solicited)
 #define UNKNOWN_ADDR_V6_USER { { { 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, \
 			      0, 0, 0, 0, 0, 0, 0, 0x66 } } }
 
-static void v6_addr_add_user(void)
+static void v6_addr_add_user(void *p1, void *p2, void *p3)
 {
+	ARG_UNUSED(p1);
+	ARG_UNUSED(p2);
+	ARG_UNUSED(p3);
+
 	struct in6_addr my_addr = MY_ADDR_V6_USER;
 	bool ret;
 
@@ -952,7 +1012,7 @@ static void v6_addr_add_user(void)
 static void v6_addr_add_user_from_userspace(void)
 {
 	k_thread_access_grant(k_current_get(), net_if_get_by_index(1));
-	k_thread_user_mode_enter((k_thread_entry_t)v6_addr_add_user, NULL,
+	k_thread_user_mode_enter(v6_addr_add_user, NULL,
 				 NULL, NULL);
 }
 
@@ -969,8 +1029,12 @@ static void v6_addr_lookup_user(void)
 	zassert_equal(ret, 0, "IPv6 address found");
 }
 
-static void v6_addr_rm_user(void)
+static void v6_addr_rm_user(void *p1, void *p2, void *p3)
 {
+	ARG_UNUSED(p1);
+	ARG_UNUSED(p2);
+	ARG_UNUSED(p3);
+
 	struct in6_addr my_addr = MY_ADDR_V6_USER;
 	bool ret;
 
@@ -984,7 +1048,7 @@ static void v6_addr_rm_user(void)
 static void v6_addr_rm_user_from_userspace(void)
 {
 	k_thread_access_grant(k_current_get(), net_if_get_by_index(1));
-	k_thread_user_mode_enter((k_thread_entry_t)v6_addr_rm_user, NULL,
+	k_thread_user_mode_enter(v6_addr_rm_user, NULL,
 				 NULL, NULL);
 }
 
@@ -995,8 +1059,12 @@ ZTEST(net_iface, test_v6_addr_add_rm_user_from_userspace)
 	v6_addr_rm_user_from_userspace();
 }
 
-static void netmask_addr_add(void)
+static void netmask_addr_add(void *p1, void *p2, void *p3)
 {
+	ARG_UNUSED(p1);
+	ARG_UNUSED(p2);
+	ARG_UNUSED(p3);
+
 	struct in_addr my_netmask = { { { 255, 255, 255, 0 } } };
 	bool ret;
 
@@ -1006,13 +1074,13 @@ static void netmask_addr_add(void)
 
 ZTEST(net_iface, test_netmask_addr_add)
 {
-	netmask_addr_add();
+	netmask_addr_add(NULL, NULL, NULL);
 }
 
 static void netmask_addr_add_from_userspace(void)
 {
 	k_thread_access_grant(k_current_get(), net_if_get_by_index(1));
-	k_thread_user_mode_enter((k_thread_entry_t)netmask_addr_add, NULL,
+	k_thread_user_mode_enter(netmask_addr_add, NULL,
 				 NULL, NULL);
 }
 
@@ -1021,8 +1089,12 @@ ZTEST(net_iface, test_netmask_addr_add_from_userspace)
 	netmask_addr_add_from_userspace();
 }
 
-static void gw_addr_add(void)
+static void gw_addr_add(void *p1, void *p2, void *p3)
 {
+	ARG_UNUSED(p1);
+	ARG_UNUSED(p2);
+	ARG_UNUSED(p3);
+
 	struct in_addr my_gw = { { { 192, 0, 2, 254 } } };
 	bool ret;
 
@@ -1032,13 +1104,13 @@ static void gw_addr_add(void)
 
 ZTEST(net_iface, test_gw_addr_add)
 {
-	gw_addr_add();
+	gw_addr_add(NULL, NULL, NULL);
 }
 
 static void gw_addr_add_from_userspace(void)
 {
 	k_thread_access_grant(k_current_get(), net_if_get_by_index(1));
-	k_thread_user_mode_enter((k_thread_entry_t)gw_addr_add, NULL,
+	k_thread_user_mode_enter(gw_addr_add, NULL,
 				 NULL, NULL);
 }
 
@@ -1047,21 +1119,25 @@ ZTEST(net_iface, test_gw_addr_add_from_userspace)
 	gw_addr_add_from_userspace();
 }
 
-static void get_by_index(void)
+static void get_by_index(void *p1, void *p2, void *p3)
 {
+	ARG_UNUSED(p1);
+	ARG_UNUSED(p2);
+	ARG_UNUSED(p3);
+
 	zassert_not_null(net_if_get_by_index(1),
 			 "Cannot get interface at index 1");
 }
 
 ZTEST(net_iface, test_get_by_index)
 {
-	get_by_index();
+	get_by_index(NULL, NULL, NULL);
 }
 
 static void get_by_index_from_userspace(void)
 {
 	k_thread_access_grant(k_current_get(), net_if_get_by_index(1));
-	k_thread_user_mode_enter((k_thread_entry_t)get_by_index, NULL,
+	k_thread_user_mode_enter(get_by_index, NULL,
 				 NULL, NULL);
 }
 
@@ -1157,7 +1233,7 @@ ZTEST(net_iface, test_interface_name)
 	ret = net_if_set_name(iface, name);
 	zassert_equal(ret, -ENAMETOOLONG, "Unexpected value (%d) returned", ret);
 
-	name = "eth0";
+	name = "abc0";
 	ret = net_if_set_name(iface, name);
 	zassert_equal(ret, 0, "Unexpected value (%d) returned", ret);
 

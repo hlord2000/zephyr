@@ -8,6 +8,7 @@
 #include <st/wl/stm32wl55Xc.dtsi>
 #include <st/wl/stm32wl55jcix-pinctrl.dtsi>
 #include "arduino_r3_connector.dtsi"
+#include "st_morpho_connector.dtsi"
 #include <zephyr/dt-bindings/input/input-event-codes.h>
 
 / {
@@ -74,7 +75,7 @@
 	status = "okay";
 };
 
-&lptim1 {
+stm32_lp_tick_source: &lptim1 {
 	clocks = <&rcc STM32_CLOCK_BUS_APB1 0x80000000>,
 		 <&rcc STM32_SRC_LSI LPTIM1_SEL(1)>;
 	status = "okay";
