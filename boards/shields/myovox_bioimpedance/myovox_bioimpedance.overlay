@@ -1,0 +1,10 @@
+&spi2 {
+	ads131m08: ads131m08@0 {
+		status = "okay";
+		compatible = "ti,ads131m08";
+		reg = <0>;
+		spi-max-frequency = <25000000>;
+		drdy-gpios = <&gpio0 1 0>;
+		#io-channel-cells = <8>;
+	};
+};
