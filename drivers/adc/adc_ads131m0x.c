@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Mustafa Abdullah Kus, Sparse Technology
+ * Copyright (c) 2023 Kelly Helmut Lord
  *
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -19,6 +19,73 @@
 
 LOG_MODULE_REGISTER(ADC_ADS131M08, CONFIG_ADC_LOG_LEVEL);
 
+enum ads131m0x_reg {
+	ADS131M0X_REG_ID = 0x00,
+	ADS131M0X_REG_STATUS = 0x01,
+	ADS131M0X_REG_MODE = 0x02,
+	ADS131M0X_REG_CLOCK = 0x03,
+#ifdef DT_HAS_COMPAT_STATUS_OKAY(ti_ads131m06) || DT_HAS_COMPAT_STATUS_OKAY(ti_ads131m08)
+	ADS131M0X_REG_GAIN_1 = 0x04,
+	ADS131M0X_REG_GAIN_2 = 0x05,
+#else
+	ADS131M0X_REG_GAIN = 0x04,
+#endif
+	ADS131M0X_REG_CFG = 0x06,
+	ADS131M0X_REG_THRSHLD_MSB = 0x07,
+	ADS131M0X_REG_THRSHLD_LSB = 0x08,
+	ADS131M0X_REG_CH0_CFG = 0x09,
+	ADS131M0X_REG_CH0_OCAL_MSB = 0x0a,
+	ADS131M0X_REG_CH0_OCAL_LSB = 0x0b,
+	ADS131M0X_REG_CH0_GCAL_MSB = 0x0c,
+	ADS131M0X_REG_CH0_GCAL_LSB = 0x0d,
+	ADS131M0X_REG_CH1_CFG = 0x0e,
+	ADS131M0X_REG_CH1_OCAL_MSB = 0x0f,
+	ADS131M0X_REG_CH1_OCAL_LSB = 0x10,
+	ADS131M0X_REG_CH1_GCAL_MSB = 0x11,
+	ADS131M0X_REG_CH1_GCAL_LSB = 0x12,
+#ifdef DT_HAS_COMPAT_STATUS_OKAY(ti_ads131m03) || DT_HAS_COMPAT_STATUS_OKAY(ti_ads131m04) || \
+	DT_HAS_COMPAT_STATUS_OKAY(ti_ads131m06) || DT_HAS_COMPAT_STATUS_OKAY(ti_ads131m08)
+	ADS131M0X_REG_CH2_CFG = 0x13,
+	ADS131M0X_REG_CH2_OCAL_MSB = 0x14,
+	ADS131M0X_REG_CH2_OCAL_LSB = 0x15,
+	ADS131M0X_REG_CH2_GCAL_MSB = 0x16,
+	ADS131M0X_REG_CH2_GCAL_LSB = 0x17,
+#endif
+#ifdef DT_HAS_COMPAT_STATUS_OKAY(ti_ads131m04) || DT_HAS_COMPAT_STATUS_OKAY(ti_ads131m06) || \
+	DT_HAS_COMPAT_STATUS_OKAY(ti_ads131m08)
+	ADS131M0X_REG_CH3_CFG = 0x18,
+	ADS131M0X_REG_CH3_OCAL_MSB = 0x19,
+	ADS131M0X_REG_CH3_OCAL_LSB = 0x1a,
+	ADS131M0X_REG_CH3_GCAL_MSB = 0x1b,
+	ADS131M0X_REG_CH3_GCAL_LSB = 0x1c,
+#endif
+#ifdef DT_HAS_COMPAT_STATUS_OKAY(ti_ads131m06) || DT_HAS_COMPAT_STATUS_OKAY(ti_ads131m08)
+	ADS131M0X_REG_CH4_CFG = 0x1d,
+	ADS131M0X_REG_CH4_OCAL_MSB = 0x1e,
+	ADS131M0X_REG_CH4_OCAL_LSB = 0x1f,
+	ADS131M0X_REG_CH4_GCAL_MSB = 0x20,
+	ADS131M0X_REG_CH4_GCAL_LSB = 0x21,
+	ADS131M0X_REG_CH5_CFG = 0x22,
+	ADS131M0X_REG_CH5_OCAL_MSB = 0x23,
+	ADS131M0X_REG_CH5_OCAL_LSB = 0x24,
+	ADS131M0X_REG_CH5_GCAL_MSB = 0x25,
+	ADS131M0X_REG_CH5_GCAL_LSB = 0x26,
+#endif
+#ifdef DT_HAS_COMPAT_STATUS_OKAY(ti_ads131m08)
+	ADS131M0X_REG_CH6_CFG = 0x27,
+	ADS131M0X_REG_CH6_OCAL_MSB = 0x28,
+	ADS131M0X_REG_CH6_OCAL_LSB = 0x29,
+	ADS131M0X_REG_CH6_GCAL_MSB = 0x2a,
+	ADS131M0X_REG_CH6_GCAL_LSB = 0x2b,
+	ADS131M0X_REG_CH7_CFG = 0x2c,
+	ADS131M0X_REG_CH7_OCAL_MSB = 0x2d,
+	ADS131M0X_REG_CH7_OCAL_LSB = 0x2e,
+	ADS131M0X_REG_CH7_GCAL_MSB = 0x2f,
+	ADS131M0X_REG_CH7_GCAL_LSB = 0x30,
+#endif
+	ADS131M0X_REG_REGMAP_CRC = 0x3e,
+};
+
 #define ADS131M0X_CMD_WRITE      0x03
 #define ADS131M0X_CMD_READ       0x05
 #define ADS131M0X_CMD_RESET      0x11
@@ -29,13 +96,15 @@ LOG_MODULE_REGISTER(ADC_ADS131M08, CONFIG_ADC_LOG_LEVEL);
 
 struct ads131m0x_config {
 	struct spi_dt_spec bus;
+#if DT_NODE_HAS_PROP(DT_DRV_INST(0), drdy_gpios)
 	struct gpio_dt_spec drdy_gpio;
+#endif
+#if DT_NODE_HAS_PROP(DT_DRV_INST(0), sync_gpios)
 	struct gpio_dt_spec sync_gpio;
-	const uint32_t odr_delay[16];
-	uint8_t resolution;
-	bool pga;
-	struct ads131m0x_gpio_ctrl gpio;
-	struct ads131m0x_gpo_ctrl gpo;
+#endif
+#if DT_NODE_HAS_PROP(DT_DRV_INST(0), reset_gpios)
+	struct gpio_dt_spec reset_gpio;
+#endif
 };
 
 union ads131m08_cmd_union {
@@ -579,30 +648,20 @@ static int ads131m0x_init(const struct device *dev)
 static const struct adc_driver_api ads131m0x_api = {
 	.channel_setup = ads131m0x_channel_setup,
 	.read = ads131m0x_read,
-	.ref_internal = 2048,
 #ifdef CONFIG_ADC_ASYNC
 	.read_async = ads131m0x_adc_read_async,
 #endif
+	.ref_internal = 1200,
 };
 
-#define DT_INST_MAX1125X(inst, t) DT_INST(inst, maxim_max##t)
+#define DT_INST_ADS131M0X(inst, t) DT_INST(inst, maxim_max##t)
 
-#define MAX1125X_INIT(t, n, odr_delay_us, res, mux, pgab)                                          \
+#define ADS131M0X_INIT(t, n, odr_delay_us, res, mux, pgab)                                          \
 	static const struct ads131m0x_config max##t##_cfg_##n = {                                   \
 		.bus = SPI_DT_SPEC_GET(DT_INST_MAX1125X(n, t),                                     \
 				       SPI_OP_MODE_MASTER | SPI_WORD_SET(8) | SPI_TRANSFER_MSB,    \
 				       1),                                                         \
-		.odr_delay = odr_delay_us,                                                         \
-		.resolution = res,                                                                 \
-		.multiplexer = mux,                 SYNC / RESET                                               \
-		.pga = pgab,                                                                       \
 		.drdy_gpio = GPIO_DT_SPEC_GET_OR(DT_INST_MAX1125X(n, t), drdy_gpios, {0}),         \
-		.gpio.gpio0_enable = DT_PROP_OR(DT_INST_MAX1125X(n, t), gpio0_enable, 1),          \
-		.gpio.gpio1_enable = DT_PROP_OR(DT_INST_MAX1125X(n, t), gpio1_enable, 0),          \
-		.gpio.gpio0_direction = DT_PROP_OR(DT_INST_MAX1125X(n, t), gpio0_direction, 0),    \
-		.gpio.gpio1_direction = DT_PROP_OR(DT_INST_MAX1125X(n, t), gpio1_direction, 0),    \
-		.gpo.gpo0_enable = DT_PROP_OR(DT_INST_MAX1125X(n, t), gpo1_enable, 0),             \
-		.gpo.gpo1_enable = DT_PROP_OR(DT_INST_MAX1125X(n, t), gpo1_enable, 0),             \
 	};                                                                                         \
 	static struct ads131m0x_data max##t##_data_##n = {                                          \
 		ADC_CONTEXT_INIT_LOCK(max##t##_data_##n, ctx),                                     \
@@ -613,66 +672,32 @@ static const struct adc_driver_api ads131m0x_api = {
 			 &max##t##_cfg_##n, POST_KERNEL, CONFIG_ADC_ADS131M0X_INIT_PRIORITY,        \
 			 &ads131m0x_api);
 
-/* Each data register is a 16-bit read-only register. Any attempt to write
- * data to this location will have no effect. The data read from these
- * registers is clocked out MSB first. The result is stored in a format
- * according to the FORMAT bit in the CTRL1 register. The data format
- * while in unipolar mode is always offset binary. In offset binary
- * format the most negative value is 0x0000, the midscale value is 0x8000 and
- *  the most positive value is 0xFFFF. In bipolar mode if the FORMAT
- * bit = ‘1’ then the data format is offset binary. If the FORMAT
- * bit= ‘0’, then the data format is two’s complement. In two’s
- * complement the negative full-scale value is 0x8000, the midscale is 0x0000
- * and the positive full scale is 0x7FFF. Any input exceeding the available
- * input range is limited to the minimum or maximum data value.
- */
-
-#define MAX11253_RESOLUTION 16
-
-/* Each data register is a 24-bit read-only register. Any attempt to write
- * data to this location will have no effect. The data read from these
- * registers is clocked out MSB first. The result is stored in a format
- * according to the FORMAT bit in the CTRL1 register. The data format
- * while in unipolar mode is always offset binary. In offset binary format
- * the most negative value is 0x000000, the midscale value is 0x800000 and
- * the most positive value is 0xFFFFFF. In bipolar mode if the FORMAT
- * bit = ‘1’ then the data format is offset binary. If the FORMAT bit = ‘0’,
- * then the data format is two’s complement. In two’s complement the negative
- * full-scale value is 0x800000, the midscale is 0x000000 and the positive
- * full scale is 0x7FFFFF. Any input exceeding the available input range is
- * limited to the minimum or maximum data value.
- */
-
-#define MAX11254_RESOLUTION 24
-
-/*
- * Approximated MAX1125X acquisition times in microseconds. These are
- * used for the initial delay when polling for data ready.
- *
- * {1.9 SPS, 3.9 SPS, 7.8 SPS, 15.6 SPS, 31.2 SPS, 62.5 SPS, 125 SPS, 250 SPS, 500 SPS,
- * 1000 SPS, 2000 SPS, 4000 SPS, 8000 SPS, 16000 SPS, 32000 SPS, 64000 SPS}
- */
-#define MAX1125X_ODR_DELAY_US                                                                      \
-	{                                                                                          \
-		526315, 256410, 128205, 64102, 32051, 16000, 8000, 4000, 2000, 1000, 500, 250,     \
-			125, 62, 31, 15                                                            \
-	}
-
-/*
- * MAX11253: 16 bit, 6-channel, programmable gain amplifier, delta-sigma
- */
-#define MAX11253_INIT(n)                                                                           \
-	MAX1125X_INIT(11253, n, MAX1125X_ODR_DELAY_US, MAX11253_RESOLUTION, false, true)
+#define ADS131M02_INIT(n) \
+	ADS131M0X_INIT()
 #undef DT_DRV_COMPAT
-#define DT_DRV_COMPAT maxim_max11253
-DT_INST_FOREACH_STATUS_OKAY(MAX11253_INIT)
+#define DT_DRV_COMPAT ti_ads131m02
+DT_INST_FOREACH_STATUS_OKAY(ADS131M02_INIT)
 
-/*
- * MAX1125X: 24 bit, 6-channel, programmable gain amplifier, delta-sigma
- */
-
-#define MAX11254_INIT(n)                                                                           \
-	MAX1125X_INIT(11254, n, MAX1125X_ODR_DELAY_US, MAX11254_RESOLUTION, false, true)
+#define ADS131M03_INIT(n) \
+	ADS131M0X_INIT()
 #undef DT_DRV_COMPAT
-#define DT_DRV_COMPAT maxim_max11254
-DT_INST_FOREACH_STATUS_OKAY(MAX11254_INIT)
+#define DT_DRV_COMPAT ti_ads131m03
+DT_INST_FOREACH_STATUS_OKAY(ADS131M03_INIT)
+
+#define ADS131M04_INIT(n) \
+	ADS131M0X_INIT()
+#undef DT_DRV_COMPAT
+#define DT_DRV_COMPAT ti_ads131m04
+DT_INST_FOREACH_STATUS_OKAY(ADS131M04_INIT)
+
+#define ADS131M06_INIT(n) \
+	ADS131M0X_INIT()
+#undef DT_DRV_COMPAT
+#define DT_DRV_COMPAT ti_ads131m06
+DT_INST_FOREACH_STATUS_OKAY(ADS131M06_INIT)
+
+#define ADS131M08_INIT(n) \
+	ADS131M0X_INIT()
+#undef DT_DRV_COMPAT
+#define DT_DRV_COMPAT ti_ads131m08
+DT_INST_FOREACH_STATUS_OKAY(ADS131M08_INIT)
