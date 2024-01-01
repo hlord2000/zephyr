@@ -142,7 +142,7 @@ manifest:
       groups:
         - hal
     - name: hal_ambiq
-      revision: 0c5ea5749245c8ff6ce7aefbf0aa9981943c2857
+      revision: 323048f916faa84cebcf6dfd73e606d8cf64107a
       path: modules/hal/ambiq
       groups:
         - hal
@@ -152,7 +152,7 @@ manifest:
       groups:
         - hal
     - name: hal_espressif
-      revision: eb7e415dc115e57afe96f552493b19d49dfc8c0e
+      revision: e98ce93e916eebdc4a0c5bceef864289447e3d63
       path: modules/hal/espressif
       west-commands: west/west-commands.yml
       groups:
@@ -193,7 +193,7 @@ manifest:
       groups:
         - hal
     - name: hal_nxp
-      revision: 2a294b540c09b36f7cddece44d25628bfde5970e
+      revision: ed3efff426ce56230be189d99ce985ceafece4a4
       path: modules/hal/nxp
       groups:
         - hal
@@ -229,7 +229,7 @@ manifest:
       groups:
         - hal
     - name: hal_stm32
-      revision: 39903791f413a944b3ec926276557757ea47a691
+      revision: 22925907a6faeb601fc9a0d8cbb65c4b26d38043
       path: modules/hal/stm32
       groups:
         - hal
@@ -258,7 +258,7 @@ manifest:
       path: modules/lib/hostap
       revision: 7adaff26baa48e26a32c576125e0a749a5239b12
     - name: libmetal
-      revision: 03140d7f4bd9ba474ebfbb6256e84a9089248e67
+      revision: 243eed541b9c211a2ce8841c788e62ddce84425e
       path: modules/hal/libmetal
       groups:
         - hal
@@ -298,7 +298,7 @@ manifest:
       revision: 9b985ea6bc237b6ae06f48eb228f2ac7f6e3b96b
       path: modules/bsim_hw_models/nrf_hw_models
     - name: open-amp
-      revision: 214f9fc1539f8e5937c0474cb6ee29b6dcb2d4b8
+      revision: da78aea63159771956fe0c9263f2e6985b66e9d5
       path: modules/lib/open-amp
     - name: openthread
       revision: 4ed44bc7d58d9a98c6cca13a50d38129045ab3df

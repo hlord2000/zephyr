@@ -29,6 +29,15 @@ Build System
 Kernel
 ======
 
+* The system heap size and its availability is now determined by a ``K_HEAP_MEM_POOL_SIZE``
+  define instead of the :kconfig:option:`CONFIG_HEAP_MEM_POOL_SIZE` Kconfig option. Subsystems
+  can specify their own custom system heap size requirements by specifying Kconfig options with
+  the prefix ``CONFIG_HEAP_MEM_POOL_ADD_SIZE_``. The old Kconfig option still exists, but will be
+  overridden if the custom requirements are larger. To force the old Kconfig option to be used,
+  even when its value is less than the indicated custom requirements, a new
+  :kconfig:option:`CONFIG_HEAP_MEM_POOL_IGNORE_MIN` option has been introduced (which defaults
+  being disabled).
+
 C Library
 =========
 
@@ -244,6 +253,10 @@ Networking
   specify retransmission parameters of the confirmable message. It is safe to pass a NULL pointer to
   use default values.
   (:github:`66482`)
+
+* The CoAP public API functions :c:func:`coap_service_send` and :c:func:`coap_resource_send` have
+  changed. An additional parameter pointer to :c:struct:`coap_transmission_parameters` has been
+  added. It is safe to pass a NULL pointer to use default values. (:github:`66540`)
 
 * The IGMP multicast library now supports IGMPv3. This results in a minor change to the existing
   api. The :c:func:`net_ipv4_igmp_join` now takes an additional argument of the type
