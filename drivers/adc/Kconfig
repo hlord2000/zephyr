@@ -121,4 +121,6 @@ source "drivers/adc/Kconfig.ad5592"
 
 source "drivers/adc/Kconfig.ltc2451"
 
+source "drivers/adc/Kconfig.ads131m0x"
+
 endif # ADC

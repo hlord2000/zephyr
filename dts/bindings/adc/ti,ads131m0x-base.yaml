@@ -7,11 +7,11 @@ on-bus: spi
 properties:
   drdy-gpios:
     type: phandle-array
-    required: true
+    required: false
     description: |
       gpio for data ready, becomes active when a conversion result is ready
-  sync-gpios:
+  reset-gpios:
     type: phandle-array
     required: false
     description: |
-      gpio for synchronizing operations across multiple adcs
+      gpio to reset adc
