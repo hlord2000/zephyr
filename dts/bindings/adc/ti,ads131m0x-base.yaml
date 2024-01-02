@@ -5,6 +5,8 @@ include: [adc-controller.yaml, spi-device.yaml]
 on-bus: spi
 
 properties:
+  "#io-channel-cells":
+    const: 1
   drdy-gpios:
     type: phandle-array
     required: false
@@ -15,3 +17,6 @@ properties:
     required: false
     description: |
       gpio to reset adc
+
+io-channel-cells:
+  - input
