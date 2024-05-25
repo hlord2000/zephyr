@@ -1,0 +1,42 @@
+# Copyright (c) 2024 Kelly Helmut Lord
+# SPDX-License-Identifier: Apache-2.0
+
+description: TMAG5253 Hall Effect Sensor
+
+compatible: "ti,tmag5253"
+
+include: [sensor-device.yaml]
+
+properties:
+  io-channels:
+    required: true
+    description: |
+      ADC IO channel connected to the output of the TMAG5253 sensor.
+  enable-gpios:
+    type: phandle-array
+    description: |
+      Identifies sensor enable GPIOs. So long as the load capacitance
+      drive limit of the TMAG5253 is observed, multiple outputs can
+      share the same ADC input by enabling them one at a time.
+  vdd:
+    type: int
+    description: |
+      Supply voltage in millivolts (mV), used to determine mid-scale
+  b-sensitivity:
+    type: int
+    enum:
+     - 200
+     - 400
+     - 800
+     - 1600
+    description: |
+      Sensitivity to magnetic flux density in gauss (G)
+      TMAG5253A1 - 200 gauss
+      TMAG5253A2 - 400 gauss
+      TMAG5253A3 - 800 gauss
+      TMAG5253A4 - 1600 gauss
+  enable-timeout:
+    type: int
+    default: 20
+    description: |
+      Timeout between sensor enable and valid reading in microseconds (us)

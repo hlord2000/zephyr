@@ -1,0 +1,11 @@
+# Copyright (c) 2022 The ZMK Contributors
+# SPDX-License-Identifier: MIT
+
+config TMAG5253
+    bool "TMAG5253 Hall-effect Sensor"
+    default y
+    depends on DT_HAS_TI_TMAG5253_ENABLED
+    select ADC
+    select GPIO
+    help
+      Enable driver for TMAG5253 Hall-effect sensor.
