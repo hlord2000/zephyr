@@ -1,0 +1,156 @@
+/*
+ * Copyright (c) 2024 Helmut Lord
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/dts-v1/;
+#include <st/f0/stm32f072Xb.dtsi>
+#include <st/f0/stm32f072r(8-b)tx-pinctrl.dtsi>
+#include <zephyr/dt-bindings/input/input-event-codes.h>
+
+/ {
+	model = "Helmut Lord Knob Array";
+	compatible = "helmutlord,knob-array";
+
+	chosen {
+		zephyr,console = &usart4;
+		zephyr,shell-uart = &usart4;
+		zephyr,sram = &sram0;
+		zephyr,flash = &flash0;
+	};
+
+	qdec1 {
+		compatible = "gpio-qdec";
+		gpios = <&gpiob 14 (GPIO_PULL_UP | GPIO_ACTIVE_HIGH)>,
+			<&gpiob 15 (GPIO_PULL_UP | GPIO_ACTIVE_HIGH)>;
+		steps-per-period = <4>;
+		zephyr,axis = <INPUT_REL_WHEEL>;
+		sample-time-us = <2000>;
+		idle-timeout-ms = <200>;
+		idle-poll-time-us = <5000>;
+	};
+
+	qdec2 {
+		compatible = "gpio-qdec";
+		gpios = <&gpioa 9 (GPIO_PULL_UP | GPIO_ACTIVE_HIGH)>,
+			<&gpioa 10 (GPIO_PULL_UP | GPIO_ACTIVE_HIGH)>;
+		steps-per-period = <4>;
+		zephyr,axis = <INPUT_REL_WHEEL>;
+		sample-time-us = <2000>;
+		idle-timeout-ms = <200>;
+		idle-poll-time-us = <5000>;
+	};
+
+	qdec3 {
+		compatible = "gpio-qdec";
+		gpios = <&gpiob 3 (GPIO_PULL_UP | GPIO_ACTIVE_HIGH)>,
+			<&gpiob 4 (GPIO_PULL_UP | GPIO_ACTIVE_HIGH)>;
+		steps-per-period = <4>;
+		zephyr,axis = <INPUT_REL_WHEEL>;
+		sample-time-us = <2000>;
+		idle-timeout-ms = <200>;
+		idle-poll-time-us = <5000>;
+	};
+
+	qdec4 {
+		compatible = "gpio-qdec";
+		gpios = <&gpiob 6 (GPIO_PULL_UP | GPIO_ACTIVE_HIGH)>,
+			<&gpiob 7 (GPIO_PULL_UP | GPIO_ACTIVE_HIGH)>;
+		steps-per-period = <4>;
+		zephyr,axis = <INPUT_REL_WHEEL>;
+		sample-time-us = <2000>;
+		idle-timeout-ms = <200>;
+		idle-poll-time-us = <5000>;
+	};
+
+	qdec5 {
+		compatible = "gpio-qdec";
+		gpios = <&gpiob 1 (GPIO_PULL_UP | GPIO_ACTIVE_HIGH)>,
+			<&gpiob 2 (GPIO_PULL_UP | GPIO_ACTIVE_HIGH)>;
+		steps-per-period = <4>;
+		zephyr,axis = <INPUT_REL_WHEEL>;
+		sample-time-us = <2000>;
+		idle-timeout-ms = <200>;
+		idle-poll-time-us = <5000>;
+	};
+
+	qdec6 {
+		compatible = "gpio-qdec";
+		gpios = <&gpioa 6 (GPIO_PULL_UP | GPIO_ACTIVE_HIGH)>,
+			<&gpioa 7 (GPIO_PULL_UP | GPIO_ACTIVE_HIGH)>;
+		steps-per-period = <4>;
+		zephyr,axis = <INPUT_REL_WHEEL>;
+		sample-time-us = <2000>;
+		idle-timeout-ms = <200>;
+		idle-poll-time-us = <5000>;
+	};
+
+	qdec7 {
+		compatible = "gpio-qdec";
+		gpios = <&gpioc 15 (GPIO_PULL_UP | GPIO_ACTIVE_HIGH)>,
+			<&gpiof 0 (GPIO_PULL_UP | GPIO_ACTIVE_HIGH)>;
+		steps-per-period = <4>;
+		zephyr,axis = <INPUT_REL_WHEEL>;
+		sample-time-us = <2000>;
+		idle-timeout-ms = <200>;
+		idle-poll-time-us = <5000>;
+	};
+
+	qdec8 {
+		compatible = "gpio-qdec";
+		gpios = <&gpiob 9 (GPIO_PULL_UP | GPIO_ACTIVE_HIGH)>,
+			<&gpioc 13 (GPIO_PULL_UP | GPIO_ACTIVE_HIGH)>;
+		steps-per-period = <4>;
+		zephyr,axis = <INPUT_REL_WHEEL>;
+		sample-time-us = <2000>;
+		idle-timeout-ms = <200>;
+		idle-poll-time-us = <5000>;
+	};
+
+	aliases {
+		watchdog0 = &iwdg;
+	};
+};
+
+&clk_hsi {
+	status = "okay";
+};
+
+&pll {
+	prediv = <1>;
+	mul = <6>;
+	clocks = <&clk_hsi>;
+	status = "okay";
+};
+
+&rcc {
+	clocks = <&pll>;
+	clock-frequency = <DT_FREQ_M(48)>;
+	ahb-prescaler = <1>;
+	apb1-prescaler = <1>;
+};
+
+&usart4 {
+	pinctrl-0 = <&usart4_tx_pa0 &usart4_rx_pa1>;
+	pinctrl-names = "default";
+	current-speed = <115200>;
+	status = "okay";
+};
+
+zephyr_udc0: &usb {
+	pinctrl-0 = <&usb_dm_pa11 &usb_dp_pa12>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+&i2c2 {
+	pinctrl-0 = <&i2c2_scl_pb10 &i2c2_sda_pb11>;
+	pinctrl-names = "default";
+	status = "okay";
+	clock-frequency = <I2C_BITRATE_FAST>;
+};
+
+&iwdg {
+	status = "okay";
+};

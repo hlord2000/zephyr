@@ -1,0 +1,5 @@
+board:
+  name: knob_array
+  vendor: helmutlord
+  socs:
+    - name: stm32f072xb

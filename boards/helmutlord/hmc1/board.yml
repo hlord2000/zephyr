@@ -1,0 +1,5 @@
+board:
+  name: hmc1
+  vendor: helmutlord
+  socs:
+  - name: nrf52832

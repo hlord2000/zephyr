@@ -1,0 +1,122 @@
+/*
+ * Copyright (c) 2024 Helmut Lord <helmut@helmutlord.com>
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/dts-v1/;
+#include <nordic/nrf52832_qfaa.dtsi>
+#include "hmc1_nrf52832-pinctrl.dtsi"
+#include <zephyr/dt-bindings/input/input-event-codes.h>
+
+/ {
+	model = "Helmut Lord HMC1";
+	compatible = "helmutlord,hmc1-nrf52832";
+
+	chosen {
+		zephyr,console = &uart0;
+		zephyr,shell-uart = &uart0;
+		zephyr,uart-mcumgr = &uart0;
+		zephyr,bt-mon-uart = &uart0;
+		zephyr,bt-c2h-uart = &uart0;
+		zephyr,sram = &sram0;
+		zephyr,flash = &flash0;
+		zephyr,code-partition = &slot0_partition;
+	};
+
+	pwmleds {
+		compatible = "pwm-leds";
+		pwm_led0: pwm_led_0 {
+			pwms = <&pwm0 0 PWM_MSEC(20) PWM_POLARITY_INVERTED>;
+		};
+	};
+
+	buttons {
+		compatible = "gpio-keys";
+		button_down: button_down {
+			gpios = <&gpio0 2 GPIO_ACTIVE_HIGH>;
+			label = "Push button, navigate down";
+			zephyr,code = <INPUT_KEY_0>;
+		};
+		button_center: button_center {
+			gpios = <&gpio0 28 GPIO_ACTIVE_HIGH>;
+			label = "Push button, center";
+			zephyr,code = <INPUT_KEY_1>;
+		};
+		button_up: button_up {
+			gpios = <&gpio0 29 GPIO_ACTIVE_HIGH>;
+			label = "Push button, navigate up";
+			zephyr,code = <INPUT_KEY_2>;
+		};
+		button_right: button_right {
+			gpios = <&gpio0 31 GPIO_ACTIVE_HIGH>;
+			label = "Push button, navigate right";
+			zephyr,code = <INPUT_KEY_3>;
+		};
+		button_left: button_left {
+			gpios = <&gpio0 20 GPIO_ACTIVE_HIGH>;
+			label = "Push button, navigate left";
+			zephyr,code = <INPUT_KEY_3>;
+		};
+	};
+
+	aliases {
+		pwm-led0 = &pwm_led0;
+		sw0 = &button_center;
+		mcuboot-button0 = &button_center;
+		watchdog0 = &wdt0;
+	};
+};
+
+&uicr {
+	gpio-as-nreset;
+};
+
+&gpiote {
+	status = "okay";
+};
+
+&gpio0 {
+	status = "okay";
+};
+
+&uart0 {
+	status = "okay";
+	compatible = "nordic,nrf-uarte";
+	current-speed = <115200>;
+	pinctrl-0 = <&uart0_default>;
+	pinctrl-1 = <&uart0_sleep>;
+	pinctrl-names = "default", "sleep";
+};
+
+&pwm0 {
+	status = "okay";
+	pinctrl-0 = <&pwm0_default>;
+	pinctrl-1 = <&pwm0_sleep>;
+	pinctrl-names = "default", "sleep";
+};
+
+&flash0 {
+	partitions {
+		compatible = "fixed-partitions";
+		#address-cells = <1>;
+		#size-cells = <1>;
+
+		boot_partition: partition@0 {
+			label = "mcuboot";
+			reg = <0x00000000 0xc000>;
+		};
+		slot0_partition: partition@c000 {
+			label = "image-0";
+			reg = <0x0000C000 0x37000>;
+		};
+		slot1_partition: partition@43000 {
+			label = "image-1";
+			reg = <0x00043000 0x37000>;
+		};
+		storage_partition: partition@7a000 {
+			label = "storage";
+			reg = <0x0007a000 0x00006000>;
+		};
+	};
+};
