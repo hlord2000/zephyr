@@ -1,0 +1,12 @@
+# OPT4001 light sensor configuration options
+
+# Copyright (c) 2024 Kelly Helmut Lord
+# SPDX-License-Identifier: Apache-2.0
+
+config OPT4001
+	bool "OPT4001 Light Sensor"
+	default y
+	depends on DT_HAS_TI_OPT4001DTS_ENABLED || DT_HAS_TI_OPT4001YMN_ENABLED
+	select I2C
+	help
+	  Enable driver for OPT4001 light sensors.
