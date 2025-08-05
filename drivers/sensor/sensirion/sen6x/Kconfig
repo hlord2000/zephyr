@@ -1,0 +1,17 @@
+# SHT6x air quality sensor configuration options
+
+# Copyright (c) 2025 Kelly Lord
+# SPDX-License-Identifier: Apache-2.0
+
+config SEN6X
+	bool "SEN6x Air Quality Sensor"
+	default y
+	depends on DT_HAS_SENSIRION_SEN60_ENABLED     \
+		   || DT_HAS_SENSIRION_SEN63C_ENABLED \
+		   || DT_HAS_SENSIRION_SEN65_ENABLED  \
+		   || DT_HAS_SENSIRION_SEN66_ENABLED  \
+		   || DT_HAS_SENSIRION_SEN68_ENABLED
+	select I2C
+	select CRC
+	help
+	  Enable driver for SEN6x air quality sensors.

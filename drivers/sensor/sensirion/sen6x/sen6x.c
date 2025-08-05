@@ -215,6 +215,10 @@ static int sen6x_init(const struct device *dev)
 	return pm_device_driver_init(dev, sen6x_pm_action);
 }
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> 3e8e26dea49 (Finished registers, beginning implementation.)
 static DEVICE_API(sensor, sen6x_api) = {
 	.sample_fetch = sen6x_sample_fetch,
 	.channel_get = sen6x_channel_get,
@@ -222,6 +226,7 @@ static DEVICE_API(sensor, sen6x_api) = {
 	.attr_get = sen6x_attr_set,
 };
 
+<<<<<<< HEAD
 #define SEN6X_DEFINE(n, compat, variant_enum)                                                      \
 	static struct sen6x_data sen6x_data_##n;                                                   \
                                                                                                    \
@@ -231,6 +236,24 @@ static DEVICE_API(sensor, sen6x_api) = {
 	SENSOR_DEVICE_DT_INST_DEFINE(n, sen6x_init, PM_DEVICE_DT_INST_GET(n), &sen6x_data_##n,     \
 				     &sen6x_config_##n, POST_KERNEL, CONFIG_SENSOR_INIT_PRIORITY,  \
 				     &sen6x_api);
+=======
+#define SEN6X_DEFINE(n, compat, variant_enum)				\
+	static struct sen6x_data sen6x_data_##n;		\
+								\
+	static const struct sen6x_config sen6x_config_##n = {	\
+		.bus = I2C_DT_SPEC_INST_GET(n),			\
+		.variant = variant_enum				\
+	};							\
+	PM_DEVICE_DT_INST_DEFINE(n, sen6x_pm_action);	\
+	SENSOR_DEVICE_DT_INST_DEFINE(n,				\
+				sen6x_init,			\
+				PM_DEVICE_DT_INST_GET(n),		\
+				&sen6x_data_##n,		\
+				&sen6x_config_##n,		\
+				POST_KERNEL,			\
+				CONFIG_SENSOR_INIT_PRIORITY,	\
+				&sen6x_api);
+>>>>>>> 3e8e26dea49 (Finished registers, beginning implementation.)
 
 #define DT_DRV_COMPAT sensirion_sen60
 DT_INST_FOREACH_STATUS_OKAY_VARGS(SEN6X_DEFINE, DT_DRV_COMPAT, DEVICE_VARIANT_SEN60)
