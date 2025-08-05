@@ -218,6 +218,9 @@ static int sen6x_init(const struct device *dev)
 <<<<<<< HEAD
 =======
 
+<<<<<<< HEAD
+>>>>>>> 3e8e26dea49 (Finished registers, beginning implementation.)
+=======
 >>>>>>> 3e8e26dea49 (Finished registers, beginning implementation.)
 static DEVICE_API(sensor, sen6x_api) = {
 	.sample_fetch = sen6x_sample_fetch,
@@ -226,6 +229,7 @@ static DEVICE_API(sensor, sen6x_api) = {
 	.attr_get = sen6x_attr_set,
 };
 
+<<<<<<< HEAD
 <<<<<<< HEAD
 #define SEN6X_DEFINE(n, compat, variant_enum)                                                      \
 	static struct sen6x_data sen6x_data_##n;                                                   \
@@ -237,6 +241,8 @@ static DEVICE_API(sensor, sen6x_api) = {
 				     &sen6x_config_##n, POST_KERNEL, CONFIG_SENSOR_INIT_PRIORITY,  \
 				     &sen6x_api);
 =======
+=======
+>>>>>>> 3e8e26dea49 (Finished registers, beginning implementation.)
 #define SEN6X_DEFINE(n, compat, variant_enum)				\
 	static struct sen6x_data sen6x_data_##n;		\
 								\
@@ -253,6 +259,9 @@ static DEVICE_API(sensor, sen6x_api) = {
 				POST_KERNEL,			\
 				CONFIG_SENSOR_INIT_PRIORITY,	\
 				&sen6x_api);
+<<<<<<< HEAD
+>>>>>>> 3e8e26dea49 (Finished registers, beginning implementation.)
+=======
 >>>>>>> 3e8e26dea49 (Finished registers, beginning implementation.)
 
 #define DT_DRV_COMPAT sensirion_sen60
