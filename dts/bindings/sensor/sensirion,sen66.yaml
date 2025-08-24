@@ -1,0 +1,10 @@
+#
+# Copyright (c) 2025, Kelly Helmut Lord
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Sensirion SEN66 indoor air quality sensor
+
+compatible: "sensirion,sen66"
+
+include: [sensor-device.yaml, i2c-device.yaml]

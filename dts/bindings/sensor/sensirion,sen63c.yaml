@@ -1,0 +1,10 @@
+#
+# Copyright (c) 2025, Kelly Helmut Lord
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Sensirion SEN63C indoor air quality sensor
+
+compatible: "sensirion,sen63c"
+
+include: [sensor-device.yaml, i2c-device.yaml]
