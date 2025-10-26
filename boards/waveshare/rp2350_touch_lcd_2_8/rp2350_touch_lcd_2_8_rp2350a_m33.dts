@@ -1,0 +1,133 @@
+/*
+ * Copyright (c) 2025 Your Name
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/dts-v1/;
+
+/* The build system assumes that there's a cpucluster-specific file.
+ *
+ * This file provides composition of the device tree:
+ * 1. The common features of the SoC
+ * 2. Core-specific configuration.
+ * 3. Board-specific configuration.
+ */
+#include <raspberrypi/rpi_pico/rp2350a.dtsi>
+#include <raspberrypi/rpi_pico/m33.dtsi>
+#include "rp2350_touch_lcd_2_8.dtsi"
+#include <zephyr/dt-bindings/mipi_dbi/mipi_dbi.h>
+
+/ {
+	model = "Waveshare RP2350 Touch LCD 2.8";
+	compatible = "waveshare,rp2350-touch-lcd-2.8";
+
+	aliases {
+		rtc = &pcf85063;
+	};
+
+	chosen {
+		zephyr,display = &st7789v_240x320;
+		/* zephyr,touch = &cst328; */  /* CST328 not yet supported in Zephyr */
+	};
+
+	/* MIPI DBI for ST7789V LCD Display */
+	mipi_dbi_st7789v_240x320 {
+		compatible = "zephyr,mipi-dbi-spi";
+		spi-dev = <&spi1>;
+		dc-gpios = <&gpio0 14 GPIO_ACTIVE_HIGH>;	/* LCD DC */
+		reset-gpios = <&gpio0 15 GPIO_ACTIVE_LOW>;	/* LCD Reset */
+		write-only;
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		st7789v_240x320: st7789v@0 {
+			compatible = "sitronix,st7789v";
+			mipi-max-frequency = <20000000>;
+			reg = <0>;
+			width = <240>;
+			height = <320>;
+			x-offset = <0>;
+			y-offset = <0>;
+			vcom = <0x19>;
+			gctrl = <0x35>;
+			vrhs = <0x12>;
+			vdvs = <0x20>;
+			mdac = <0x00>;
+			gamma = <0x01>;
+			colmod = <0x05>;
+			lcm = <0x2c>;
+			porch-param = [0c 0c 00 33 33];
+			cmd2en-param = [5a 69 02 01];
+			pwctrl1-param = [a4 a1];
+			pvgam-param = [D0 04 0D 11 13 2B 3F 54 4C 18 0D 0B 1F 23];
+			nvgam-param = [D0 04 0C 11 13 2C 3F 44 51 2F 1F 1F 20 23];
+			ram-param = [00 F0];
+			rgb-param = [CD 08 14];
+			mipi-mode = "MIPI_DBI_MODE_SPI_4WIRE";
+		};
+	};
+
+	/* PWM LED for LCD Backlight */
+	pwmleds {
+		compatible = "pwm-leds";
+
+		pwm_lcd_bl: pwm_lcd_backlight {
+			pwms = <&pwm 0 PWM_MSEC(20) PWM_POLARITY_NORMAL>;
+			label = "LCD Backlight";
+		};
+	};
+
+	/* LVGL pointer input for touch - disabled until CST328 driver available */
+	/* lvgl_pointer {
+		compatible = "zephyr,lvgl-pointer-input";
+		input = <&cst328>;
+	}; */
+};
+
+/* I2C1 devices: Touch controller (CST328) and IMU (QMI8658) */
+&i2c1 {
+	/* Hynitron CST328 Capacitive Touch Controller
+	 * Note: CST328 driver not yet available in Zephyr. Add when supported.
+	 * GPIO17 = Touch Reset, GPIO18 = Touch Interrupt
+	 */
+	/* cst328: cst328@xx {
+		compatible = "hynitron,cst328";
+		reg = <0xXX>;
+		irq-gpios = <&gpio0 18 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
+		rst-gpios = <&gpio0 17 GPIO_ACTIVE_LOW>;
+	}; */
+
+	/* QMI8658 IMU
+	 * Note: QMI8658 driver not available in Zephyr.
+	 * GPIO8 = IMU INT1, GPIO9 = IMU INT2
+	 */
+	/* qmi8658: qmi8658@xx {
+		compatible = "qst,qmi8658";
+		reg = <0xXX>;
+		int1-gpios = <&gpio0 8 GPIO_ACTIVE_HIGH>;
+		int2-gpios = <&gpio0 9 GPIO_ACTIVE_HIGH>;
+	}; */
+
+	/* PCF85063A RTC
+	 * GPIO5 = RTC interrupt
+	 */
+	pcf85063: pcf85063a@51 {
+		compatible = "nxp,pcf85063a";
+		reg = <0x51>;
+		int1-gpios = <&gpio0 5 GPIO_ACTIVE_LOW>;
+	};
+};
+
+/* I2S Audio Interface - GPIO2/3/4
+ * GPIO2 = I2S BCK, GPIO3 = I2S LRCLK, GPIO4 = I2S DIN
+ * Note: I2S support in RP2350 typically requires PIO blocks.
+ * This may need custom PIO programs or future Zephyr I2S-PIO driver.
+ */
+
+/* SD Card - GPIO19-24
+ * GPIO19 = SCK, GPIO20 = CMD, GPIO21 = D0, GPIO22 = D1, GPIO23 = D2, GPIO24 = D3
+ * Note: This appears to use SDIO mode with D0-D3 data lines.
+ * RP2350 SDIO support needs to be verified.
+ * Alternative: Configure as SPI mode using SDHC driver.
+ */

@@ -1,0 +1,25 @@
+identifier: rp2350_touch_lcd_2_8/rp2350a/m33
+name: Waveshare RP2350 Touch LCD 2.8 (Cortex-M33)
+type: mcu
+arch: arm
+flash: 16384
+ram: 520
+toolchain:
+  - zephyr
+  - gnuarmemb
+supported:
+  - adc
+  - clock
+  - counter
+  - display
+  - dma
+  - gpio
+  - hwinfo
+  - i2c
+  - input
+  - pwm
+  - rtc
+  - spi
+  - uart
+  - usbd
+  - watchdog
