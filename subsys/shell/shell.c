@@ -927,6 +927,106 @@ static void root_partial_autocomplete(const struct shell *sh,
 	}
 }
 
+#if defined(CONFIG_SHELL_CMD_ABORT)
+
+#define SHELL_ASCII_ETX 0x03 /* Ctrl+C */
+
+static K_THREAD_STACK_DEFINE(shell_cmd_worker_stack, CONFIG_SHELL_CMD_ABORT_STACK_SIZE);
+static struct k_thread shell_cmd_worker;
+static struct k_sem shell_cmd_done;
+static struct {
+	const struct shell *sh;
+	shell_cmd_handler handler;
+	size_t argc;
+	char **argv;
+	int ret;
+} shell_cmd_work;
+
+static void shell_cmd_worker_entry(void *p1, void *p2, void *p3)
+{
+	ARG_UNUSED(p1);
+	ARG_UNUSED(p2);
+	ARG_UNUSED(p3);
+
+	shell_cmd_work.ret = shell_cmd_work.handler(shell_cmd_work.sh,
+						    shell_cmd_work.argc,
+						    shell_cmd_work.argv);
+	k_sem_give(&shell_cmd_done);
+}
+
+/* Run a command handler in a worker thread while the shell thread watches the
+ * input for Ctrl+C. Entered with the shell lock released (as it is after the
+ * unlock in exec_cmd()) and returns with the shell lock released.
+ *
+ * The worker runs at one priority level below the shell thread so the shell
+ * thread always preempts it to poll the input, even for a CPU-bound command.
+ */
+static int exec_cmd_abortable(const struct shell *sh, size_t argc, char **argv)
+{
+	k_tid_t tid;
+
+	sh->ctx->cmd_abort_cb = NULL;
+	sh->ctx->cmd_abort_user_data = NULL;
+
+	k_sem_init(&shell_cmd_done, 0, 1);
+	shell_cmd_work.sh = sh;
+	shell_cmd_work.handler = sh->ctx->active_cmd.handler;
+	shell_cmd_work.argc = argc;
+	shell_cmd_work.argv = argv;
+	shell_cmd_work.ret = 0;
+
+	tid = k_thread_create(&shell_cmd_worker, shell_cmd_worker_stack,
+			      K_THREAD_STACK_SIZEOF(shell_cmd_worker_stack),
+			      shell_cmd_worker_entry, NULL, NULL, NULL,
+			      k_thread_priority_get(sh->ctx->tid) + 1, 0, K_NO_WAIT);
+	k_thread_name_set(tid, "shell_cmd");
+
+	while (true) {
+		uint8_t c;
+		size_t cnt = 0;
+
+		if (k_sem_take(&shell_cmd_done,
+			       K_MSEC(CONFIG_SHELL_CMD_ABORT_POLL_MS)) == 0) {
+			/* Handler returned on its own. */
+			(void)k_thread_join(&shell_cmd_worker, K_FOREVER);
+			break;
+		}
+
+		/* Poll the transport for a Ctrl+C (ETX) byte. */
+		if (sh->iface->api->read(sh->iface, &c, sizeof(c), &cnt) < 0) {
+			continue;
+		}
+
+		if ((cnt == 1) && (c == SHELL_ASCII_ETX) &&
+		    (sh->ctx->cmd_abort_cb != NULL)) {
+			shell_cmd_abort_cb_t cb = sh->ctx->cmd_abort_cb;
+			void *user_data = sh->ctx->cmd_abort_user_data;
+
+			/* Take the shell lock so that any in-flight shell_print()
+			 * in the worker finishes and releases it first; this
+			 * guarantees the worker is not holding the lock when it
+			 * is aborted. Release it again before invoking the
+			 * callback so the callback may itself use shell_print().
+			 */
+			z_shell_lock(sh);
+			k_thread_abort(&shell_cmd_worker);
+			z_shell_unlock(sh);
+
+			cb(sh, user_data);
+
+			shell_cmd_work.ret = -ECANCELED;
+			break;
+		}
+	}
+
+	sh->ctx->cmd_abort_cb = NULL;
+	sh->ctx->cmd_abort_user_data = NULL;
+
+	return shell_cmd_work.ret;
+}
+
+#endif /* CONFIG_SHELL_CMD_ABORT */
+
 static int exec_cmd(const struct shell *sh, size_t argc, const char **argv, size_t cmd_lvl,
 		    const struct shell_static_entry *help_entry)
 {
@@ -979,6 +1079,13 @@ static int exec_cmd(const struct shell *sh, size_t argc, const char **argv, size
 		     (SHELL_CMD_FLAG_REMOTE_ROOT | SHELL_CMD_FLAG_REMOTE_SUBCMD))) {
 			ret_val = z_shell_remote_cmd_exec(sh, &sh->ctx->active_cmd,
 							  argc, argv, cmd_lvl);
+#if defined(CONFIG_SHELL_CMD_ABORT)
+		} else if (k_current_get() == sh->ctx->tid) {
+			/* Interactive execution: run the handler in a worker
+			 * thread so the shell thread can watch for Ctrl+C.
+			 */
+			ret_val = exec_cmd_abortable(sh, cmd_argc, cmd_argv);
+#endif
 		} else {
 			ret_val = sh->ctx->active_cmd.handler(sh, cmd_argc, cmd_argv);
 		}
@@ -2235,6 +2342,24 @@ void shell_set_bypass(const struct shell *sh, shell_bypass_cb_t bypass, void *us
 	if (bypass == NULL) {
 		cmd_buffer_clear(sh);
 	}
+}
+
+void shell_command_set_abort_handler(const struct shell *sh, shell_cmd_abort_cb_t cb,
+				     void *user_data)
+{
+#if defined(CONFIG_SHELL_CMD_ABORT)
+	__ASSERT_NO_MSG(sh);
+
+	/* Publish user_data before the callback so the shell thread, which
+	 * gates on cmd_abort_cb being non-NULL, never sees a stale pair.
+	 */
+	sh->ctx->cmd_abort_user_data = user_data;
+	sh->ctx->cmd_abort_cb = cb;
+#else
+	ARG_UNUSED(sh);
+	ARG_UNUSED(cb);
+	ARG_UNUSED(user_data);
+#endif /* CONFIG_SHELL_CMD_ABORT */
 }
 
 bool shell_ready(const struct shell *sh)

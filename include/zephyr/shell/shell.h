@@ -809,6 +809,23 @@ typedef void (*shell_transport_handler_t)(enum shell_transport_evt evt,
 
 typedef void (*shell_uninit_cb_t)(const struct shell *sh, int res);
 
+/** @brief Command abort cleanup callback.
+ *
+ * Registered by an interruptible command handler with
+ * shell_command_set_abort_handler(). Invoked from the shell thread after the
+ * command's worker thread has been aborted in response to Ctrl+C, so that the
+ * command can release any resources it acquired.
+ *
+ * @note Runs in the shell thread, not in the (now aborted) command thread. It
+ * may therefore only touch resources that are safe to release cross-thread,
+ * e.g. give a k_sem, free heap, or cancel a device transfer. It must not
+ * k_mutex_unlock() a mutex that was locked by the command.
+ *
+ * @param sh        Shell instance.
+ * @param user_data User data supplied at registration.
+ */
+typedef void (*shell_cmd_abort_cb_t)(const struct shell *sh, void *user_data);
+
 /** @brief Bypass callback.
  *
  * @param sh Shell instance.
@@ -1058,6 +1075,15 @@ struct shell_ctx {
 	struct k_sem lock_sem;
 	k_tid_t tid;
 	int ret_val;
+
+#if defined(CONFIG_SHELL_CMD_ABORT)
+	/** Cleanup callback for the currently running interruptible command,
+	 * or NULL if the command is not interruptible. Set from the command
+	 * (worker) thread, read from the shell thread.
+	 */
+	shell_cmd_abort_cb_t volatile cmd_abort_cb;
+	void *volatile cmd_abort_user_data;
+#endif /* CONFIG_SHELL_CMD_ABORT */
 };
 
 extern const struct log_backend_api log_backend_shell_api;
@@ -1466,6 +1492,28 @@ int shell_set_root_cmd(const char *cmd);
  * @param[in] user_data	Bypass callback user data.
  */
 void shell_set_bypass(const struct shell *sh, shell_bypass_cb_t bypass, void *user_data);
+
+/** @brief Make the running command interruptible with Ctrl+C.
+ *
+ * Called from within a command handler to opt in to being aborted when the
+ * user presses Ctrl+C. The handler must run in the interactive shell context
+ * (i.e. be entered from user input, not from shell_execute_cmd() invoked by
+ * another thread) and CONFIG_SHELL_CMD_ABORT must be enabled; otherwise this
+ * call has no effect.
+ *
+ * If Ctrl+C is received, the command's worker thread is aborted and @p cb is
+ * invoked from the shell thread so the command can release its resources. See
+ * shell_cmd_abort_cb_t for the constraints on what @p cb may do.
+ *
+ * The registration is cleared automatically when the command returns.
+ *
+ * @param[in] sh	Pointer to the shell instance.
+ * @param[in] cb	Cleanup callback, or NULL to make the command
+ *			non-interruptible again.
+ * @param[in] user_data	User data passed to the callback.
+ */
+void shell_command_set_abort_handler(const struct shell *sh, shell_cmd_abort_cb_t cb,
+				     void *user_data);
 
 /** @brief Get shell readiness to execute commands.
  *

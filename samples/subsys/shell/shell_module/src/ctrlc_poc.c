@@ -5,47 +5,33 @@
  */
 
 /*
- * Proof of concept for interrupting a running shell command with Ctrl+C.
+ * Proof of concept for interrupting a running shell command with Ctrl+C using
+ * the preemptive CONFIG_SHELL_CMD_ABORT mechanism.
  *
- * Background: the shell executes a command handler synchronously in the shell
- * thread. While the handler runs, shell_process()/state_collect() are not
- * called, so the shell itself never looks at incoming bytes. The UART backend
- * is interrupt driven though, so bytes received during command execution are
- * still captured into the backend RX ring buffer.
+ * With CONFIG_SHELL_CMD_ABORT enabled, interactive command handlers run in a
+ * worker thread while the shell thread keeps watching the input. A command opts
+ * in to being interruptible with a single call:
  *
- * exec_cmd() releases the shell mutex before calling the handler, and the
- * handler runs in the shell thread, so a long running command may itself drain
- * the same non-blocking transport read() that state_collect() normally uses and
- * look for the Ctrl+C (ETX, 0x03) byte. This is the cooperative model: the
- * command voluntarily polls for an abort request. It is portable (no
- * backend/ISR changes) and safe (no thread is killed mid-execution).
+ *     shell_command_set_abort_handler(sh, cb, ctx);
+ *
+ * When Ctrl+C is received, the shell thread aborts the worker and calls cb()
+ * (from the shell thread) so the command can release its resources. The command
+ * loop itself needs no checkpoints - the abort is preemptive.
+ *
+ * To keep the demo self-contained the "resource" here is a heap allocation; the
+ * abort handler frees it. Note the callback must only release things that are
+ * safe to touch cross-thread (heap, k_sem, device cancel) - not a k_mutex held
+ * by the command.
  */
 
 #include <zephyr/kernel.h>
 #include <zephyr/shell/shell.h>
 
-#define ASCII_ETX 0x03 /* Ctrl+C */
-
-/* Returns true if a Ctrl+C byte is waiting on the shell's input transport.
- * Must only be called from within a command handler (i.e. from the shell
- * thread, with the shell mutex released by exec_cmd()).
- */
-static bool ctrlc_requested(const struct shell *sh)
+static void count_abort(const struct shell *sh, void *user_data)
 {
-	uint8_t buf[16];
-	size_t count = 0;
-
-	if (sh->iface->api->read(sh->iface, buf, sizeof(buf), &count) < 0) {
-		return false;
-	}
-
-	for (size_t i = 0; i < count; i++) {
-		if (buf[i] == ASCII_ETX) {
-			return true;
-		}
-	}
-
-	return false;
+	/* Runs in the shell thread after the worker has been aborted. */
+	k_free(user_data);
+	shell_warn(sh, "interrupted; resources released");
 }
 
 static int cmd_count(const struct shell *sh, size_t argc, char **argv)
@@ -53,18 +39,22 @@ static int cmd_count(const struct shell *sh, size_t argc, char **argv)
 	ARG_UNUSED(argc);
 	ARG_UNUSED(argv);
 
+	/* A resource the command owns and that the abort handler must release. */
+	void *resource = k_malloc(64);
+
+	shell_command_set_abort_handler(sh, count_abort, resource);
+
 	shell_print(sh, "counting until Ctrl+C ...");
 
 	for (int i = 0;; i++) {
-		if (ctrlc_requested(sh)) {
-			shell_warn(sh, "interrupted at %d", i);
-			return -ECANCELED;
-		}
-
 		shell_print(sh, "tick %d", i);
 		k_sleep(K_MSEC(500));
 	}
 
+	/* Not reached, but a well-behaved command would free here on the normal
+	 * exit path and clear the abort handler.
+	 */
+	k_free(resource);
 	return 0;
 }
 

@@ -159,6 +159,43 @@ config SHELL_WILDCARD
 	help
 	  Enables using wildcards: * and ? in the shell.
 
+config SHELL_CMD_ABORT
+	bool "Ctrl+C interruption of running commands"
+	depends on !SHELL_MINIMAL
+	help
+	  When enabled, interactive command handlers run in a dedicated worker
+	  thread while the shell thread keeps watching the input. A command may
+	  opt in to being interruptible by registering a cleanup callback with
+	  shell_command_set_abort_handler(). When the user presses Ctrl+C while
+	  such a command is running, the worker thread is aborted and the
+	  registered callback is invoked (from the shell thread) to release the
+	  command's resources.
+
+	  Note: the callback runs in the shell thread, so it can only release
+	  resources that are safe to touch cross-thread (e.g. k_sem, heap,
+	  device cancel APIs). A k_mutex held by the aborted command cannot be
+	  released this way; interruptible commands must not hold one across the
+	  interruptible region. This is experimental and only one interruptible
+	  command can run at a time across all shell instances.
+
+if SHELL_CMD_ABORT
+
+config SHELL_CMD_ABORT_STACK_SIZE
+	int "Command worker thread stack size"
+	default SHELL_STACK_SIZE
+	help
+	  Stack size of the worker thread used to run interruptible command
+	  handlers. It must be large enough for the deepest command handler.
+
+config SHELL_CMD_ABORT_POLL_MS
+	int "Input poll interval while a command runs (ms)"
+	default 20
+	help
+	  How often the shell thread polls the input for Ctrl+C while a command
+	  is executing in the worker thread.
+
+endif # SHELL_CMD_ABORT
+
 config SHELL_MSG_CMD_NOT_FOUND
 	bool "': command not found' message in the shell"
 	default y
